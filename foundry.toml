@@ -39,8 +39,10 @@ bracket_spacing = false
 int_types = "long"
 quote_style = "double"
 number_underscore = "thousands"
-multiline_func_header = "params_first"
 sort_imports = true
+
+[lint]
+exclude_lints = ["asm-keccak256"]
 
 [rpc_endpoints]
 arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC_URL}"
