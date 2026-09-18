@@ -1,0 +1,11 @@
+{
+  "name": "standing",
+  "private": true,
+  "description": "Recurring stablecoin payments with recourse",
+  "scripts": {
+    "lint": "solhint 'src/**/*.sol' 'script/**/*.sol' 'test/**/*.sol'"
+  },
+  "devDependencies": {
+    "solhint": "^5.0.5"
+  }
+}

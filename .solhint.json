@@ -1,0 +1,15 @@
+{
+  "extends": "solhint:recommended",
+  "rules": {
+    "compiler-version": ["error", "^0.8.28"],
+    "func-visibility": ["error", {"ignoreConstructors": true}],
+    "max-line-length": ["warn", 110],
+    "no-empty-blocks": "off",
+    "no-global-import": "error",
+    "named-parameters-mapping": "off",
+    "one-contract-per-file": "off",
+    "ordering": "warn",
+    "gas-custom-errors": "off",
+    "interface-starts-with-i": "error"
+  }
+}

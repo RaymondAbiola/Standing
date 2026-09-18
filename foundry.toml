@@ -1,0 +1,51 @@
+[profile.default]
+src = "src"
+out = "out"
+test = "test"
+script = "script"
+libs = ["lib"]
+solc_version = "0.8.28"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 200
+gas_reports = ["*"]
+
+[profile.default.fuzz]
+runs = 512
+
+[profile.default.invariant]
+runs = 256
+depth = 64
+fail_on_revert = false
+
+# Heavier settings for CI and for the invariant suite in commit 17.
+[profile.ci.fuzz]
+runs = 2048
+
+[profile.ci.invariant]
+runs = 512
+depth = 128
+
+[profile.lite]
+optimizer = false
+
+[profile.lite.fuzz]
+runs = 64
+
+[fmt]
+line_length = 110
+tab_width = 4
+bracket_spacing = false
+int_types = "long"
+quote_style = "double"
+number_underscore = "thousands"
+multiline_func_header = "params_first"
+sort_imports = true
+
+[rpc_endpoints]
+arbitrum_sepolia = "${ARBITRUM_SEPOLIA_RPC_URL}"
+robinhood = "${ROBINHOOD_RPC_URL}"
+robinhood_testnet = "${ROBINHOOD_TESTNET_RPC_URL}"
+
+[etherscan]
+arbitrum_sepolia = {key = "${ARBISCAN_API_KEY}", chain = 421614}
