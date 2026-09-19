@@ -43,6 +43,10 @@ abstract contract Escrow {
     error UnknownHold();
     error HoldNotOpen();
     error StillLocked(uint64 unlockAt);
+    error NotHoldPayer();
+    error WindowClosed(uint64 unlockAt);
+
+    event HoldReversed(uint256 indexed holdId, address indexed payer, address token, uint256 amount);
 
     event HoldFinalized(uint256 indexed holdId, address indexed merchant, address token, uint256 amount);
 
@@ -115,6 +119,37 @@ abstract contract Escrow {
         IERC20(token).safeTransfer(merchant, amount);
 
         emit HoldFinalized(holdId, merchant, token, amount);
+    }
+
+    /// Returns a held charge to the payer before its window closes.
+    ///
+    /// Payer only. Unlike finalize, this cannot be permissionless: it is the
+    /// payer's remedy and nobody else's, and a third party able to trigger it
+    /// could grief a merchant at will.
+    ///
+    /// Postpaid charges need no special case here. They settle with a zero
+    /// window, so they are already past `unlockAt` when the hold is booked and
+    /// the window check refuses them.
+    ///
+    /// UNCONDITIONAL FOR NOW. A vested, value-capped reversal right is what
+    /// stops this from being a free option the payer can exercise every cycle,
+    /// and it is checked here once the standing book lands. Do not ship
+    /// without it.
+    function reverse(uint256 holdId) external {
+        Hold storage h = _hold(holdId);
+        if (h.status != HoldStatus.Held) revert HoldNotOpen();
+        if (msg.sender != h.payer) revert NotHoldPayer();
+        if (block.timestamp >= h.unlockAt) revert WindowClosed(h.unlockAt);
+
+        address token = h.token;
+        uint256 amount = h.amount;
+
+        h.status = HoldStatus.Reversed;
+        _totalHeld[token] -= amount;
+
+        IERC20(token).safeTransfer(msg.sender, amount);
+
+        emit HoldReversed(holdId, msg.sender, token, amount);
     }
 
     /// Books a hold. The funds must already be in this contract: callers pull

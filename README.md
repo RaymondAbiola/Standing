@@ -70,8 +70,11 @@ Buildathon work in progress. Contracts are unaudited.
 A charge pulls through Permit2 and books the funds into escrow behind an unlock time. Anyone can
 call `finalize` once the window closes, which pays the merchant.
 
-**Reversal is not wired yet.** The window exists and holds real funds, but nothing can pull a hold
-back inside it. Earned reversal rights land next.
+The payer can `reverse` a hold inside its window and get the funds back.
+
+**Reversal is unconditional right now, which is not shippable.** A reversal right that costs nothing
+is a free option no merchant would accept. The right has to vest through clean payment history and
+be capped by the value that history represents. That gate lands with the standing book.
 
 The deployed Arbitrum Sepolia address above predates escrow and pays merchants directly. It will be
 redeployed.
