@@ -50,4 +50,11 @@ robinhood = "${ROBINHOOD_RPC_URL}"
 robinhood_testnet = "${ROBINHOOD_TESTNET_RPC_URL}"
 
 [etherscan]
-arbitrum_sepolia = {key = "${ARBISCAN_API_KEY}", chain = 421614}
+# One Etherscan V2 key covers every supported chain, Arbitrum included. There
+# is no separate Arbiscan key any more.
+arbitrum_sepolia = {key = "${ETHERSCAN_API_KEY}", chain = 421614}
+
+# Robinhood Chain runs Blockscout, which takes no key. Untested until the
+# mainnet deploy; if it misbehaves, pass the verifier explicitly instead:
+#   --verifier blockscout --verifier-url https://robinhoodchain.blockscout.com/api
+robinhood = {key = "", chain = 4663, url = "https://robinhoodchain.blockscout.com/api"}
