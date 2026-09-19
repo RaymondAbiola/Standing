@@ -22,7 +22,7 @@ struct MandateRecord {
     uint64 createdAt;
 }
 
-/// Mandate creation and revocation.
+/// Mandate creation, revocation, and charge cadence.
 ///
 /// Terms are stored in full rather than kept offchain and rehashed on every
 /// charge. That costs slots once at creation and buys a `charge(bytes32 id)`
@@ -37,6 +37,8 @@ abstract contract MandateRegistry is MandateSigning {
     error UnknownMandate();
     error NotPayer();
     error NotActive();
+    error NotLive();
+    error TooSoon(uint64 earliestAt);
 
     event MandateCreated(
         bytes32 indexed id,
@@ -117,11 +119,18 @@ abstract contract MandateRegistry is MandateSigning {
     }
 
     /// True when the mandate is live: active, in window, and created under the
-    /// payer's current epoch. Cadence and cap checks land with the charge path.
+    /// payer's current epoch.
     function isMandateLive(bytes32 id) public view returns (bool) {
+        return _isLive(_mandates[id]);
+    }
+
+    /// Earliest timestamp at which the next charge may land. Zero for an
+    /// unknown mandate. The frontend reads this to show when a merchant can
+    /// bill again.
+    function nextChargeAt(bytes32 id) public view returns (uint64) {
         MandateRecord storage r = _mandates[id];
-        return r.status == MandateStatus.Active && r.epoch == _payerEpoch[r.terms.payer]
-            && block.timestamp >= r.terms.startsAt && block.timestamp < r.terms.expiresAt;
+        if (r.status == MandateStatus.None) return 0;
+        return _nextChargeAt(r);
     }
 
     function mandateId(Mandate calldata m) external pure returns (bytes32) {
@@ -130,5 +139,39 @@ abstract contract MandateRegistry is MandateSigning {
 
     function _record(bytes32 id) internal view returns (MandateRecord storage) {
         return _mandates[id];
+    }
+
+    function _isLive(MandateRecord storage r) internal view returns (bool) {
+        return r.status == MandateStatus.Active && r.epoch == _payerEpoch[r.terms.payer]
+            && block.timestamp >= r.terms.startsAt && block.timestamp < r.terms.expiresAt;
+    }
+
+    /// `minInterval` is a floor on the gap between charges, not a schedule, so
+    /// the next window is anchored on the last charge that actually happened
+    /// rather than on when it was due. A merchant that bills late shifts its
+    /// own schedule later and cannot catch up with a burst, which is the
+    /// property the payer signed up for.
+    function _nextChargeAt(MandateRecord storage r) internal view returns (uint64) {
+        uint64 last = r.lastChargeAt;
+        if (last == 0) return r.terms.startsAt;
+        unchecked {
+            // Saturate. An absurd signed interval should make the mandate
+            // permanently unchargeable, not make this view panic.
+            uint64 next = last + r.terms.minInterval;
+            return next < last ? type(uint64).max : next;
+        }
+    }
+
+    function _requireCadence(MandateRecord storage r) internal view {
+        uint64 earliest = _nextChargeAt(r);
+        if (block.timestamp < earliest) revert TooSoon(earliest);
+    }
+
+    /// Timing and count are recorded when the charge is taken, not when it
+    /// settles. Recording at settlement would let a merchant open many charges
+    /// inside one interval while they all sat in escrow.
+    function _recordCharge(MandateRecord storage r) internal {
+        r.lastChargeAt = uint64(block.timestamp);
+        r.chargeCount += 1;
     }
 }
