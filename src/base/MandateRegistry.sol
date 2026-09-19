@@ -10,6 +10,18 @@ enum MandateStatus {
     Revoked
 }
 
+/// Why a charge cannot be taken right now. Exists so the guard and the
+/// frontend's probe share one implementation instead of two copies of the
+/// same predicates, which would eventually disagree.
+enum ChargeBlock {
+    None,
+    NotLive,
+    TooSoon,
+    LimitReached,
+    AmountZero,
+    AmountTooHigh
+}
+
 /// Stored lifecycle of one mandate. `epoch` is the payer's revocation epoch at
 /// creation: bumping the payer epoch kills every mandate created under an
 /// earlier one without touching them individually.
@@ -39,6 +51,8 @@ abstract contract MandateRegistry is MandateSigning {
     error NotActive();
     error NotLive();
     error TooSoon(uint64 earliestAt);
+    error ChargeLimitReached(uint32 maxCharges);
+    error AmountExceedsCap(uint256 maxAmount);
 
     event MandateCreated(
         bytes32 indexed id,
@@ -133,6 +147,23 @@ abstract contract MandateRegistry is MandateSigning {
         return _nextChargeAt(r);
     }
 
+    /// Charges left under `maxCharges`. Unlimited mandates report uint32 max.
+    function chargesRemaining(bytes32 id) external view returns (uint32) {
+        MandateRecord storage r = _mandates[id];
+        uint32 max = r.terms.maxCharges;
+        if (max == 0) return type(uint32).max;
+        return r.chargeCount >= max ? 0 : max - r.chargeCount;
+    }
+
+    /// Non-reverting probe for the merchant dashboard: can this be billed now.
+    function chargeBlocker(bytes32 id, uint256 amount) external view returns (ChargeBlock) {
+        return _chargeBlock(_mandates[id], amount);
+    }
+
+    function isChargeable(bytes32 id, uint256 amount) external view returns (bool) {
+        return _chargeBlock(_mandates[id], amount) == ChargeBlock.None;
+    }
+
     function mandateId(Mandate calldata m) external pure returns (bytes32) {
         return MandateLib.hash(m);
     }
@@ -162,9 +193,30 @@ abstract contract MandateRegistry is MandateSigning {
         }
     }
 
-    function _requireCadence(MandateRecord storage r) internal view {
-        uint64 earliest = _nextChargeAt(r);
-        if (block.timestamp < earliest) revert TooSoon(earliest);
+    function _chargeBlock(MandateRecord storage r, uint256 amount) internal view returns (ChargeBlock) {
+        if (!_isLive(r)) return ChargeBlock.NotLive;
+        if (block.timestamp < _nextChargeAt(r)) return ChargeBlock.TooSoon;
+
+        uint32 max = r.terms.maxCharges;
+        if (max != 0 && r.chargeCount >= max) return ChargeBlock.LimitReached;
+
+        if (amount == 0) return ChargeBlock.AmountZero;
+        if (amount > r.terms.maxAmount) return ChargeBlock.AmountTooHigh;
+
+        return ChargeBlock.None;
+    }
+
+    /// Reverts unless the charge is permitted. Does not mutate: the caller
+    /// records the charge once the funds have actually moved.
+    function _requireChargeable(bytes32 id, uint256 amount) internal view returns (MandateRecord storage r) {
+        r = _mandates[id];
+        ChargeBlock b = _chargeBlock(r, amount);
+        if (b == ChargeBlock.None) return r;
+        if (b == ChargeBlock.NotLive) revert NotLive();
+        if (b == ChargeBlock.TooSoon) revert TooSoon(_nextChargeAt(r));
+        if (b == ChargeBlock.LimitReached) revert ChargeLimitReached(r.terms.maxCharges);
+        if (b == ChargeBlock.AmountZero) revert ZeroAmount();
+        revert AmountExceedsCap(r.terms.maxAmount);
     }
 
     /// Timing and count are recorded when the charge is taken, not when it
