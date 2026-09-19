@@ -206,8 +206,12 @@ abstract contract MandateRegistry is MandateSigning {
         return ChargeBlock.None;
     }
 
-    /// Reverts unless the charge is permitted. Does not mutate: the caller
-    /// records the charge once the funds have actually moved.
+    /// Reverts unless the charge is permitted. Does not mutate, so the caller
+    /// controls ordering, and the caller must call `_recordCharge` BEFORE
+    /// moving any funds. Pulling hands control to the token, and a hostile
+    /// token that reentered while `lastChargeAt` still held its old value
+    /// would clear the cadence check a second time. Reverting the outer call
+    /// unwinds the early write anyway, so there is no cost to doing it first.
     function _requireChargeable(bytes32 id, uint256 amount) internal view returns (MandateRecord storage r) {
         r = _mandates[id];
         ChargeBlock b = _chargeBlock(r, amount);
