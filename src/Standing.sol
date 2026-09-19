@@ -4,6 +4,7 @@ pragma solidity 0.8.28;
 import {Escrow} from "./base/Escrow.sol";
 import {MandateRecord, MandateRegistry} from "./base/MandateRegistry.sol";
 import {Permit2Puller} from "./base/Permit2Puller.sol";
+import {StandingBook} from "./base/StandingBook.sol";
 import {ChargeKind} from "./types/Mandate.sol";
 
 /// Standing: recurring stablecoin payments with recourse.
@@ -12,7 +13,7 @@ import {ChargeKind} from "./types/Mandate.sol";
 /// escrow behind an unlock time. The merchant is paid when the window closes.
 /// Earned reversal rights, which decide whether a payer may pull a hold back
 /// inside that window, land next.
-contract Standing is MandateRegistry, Permit2Puller, Escrow {
+contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook {
     /// Placeholder policy. The window becomes a function of merchant history,
     /// shortening as a merchant earns trust, once the merchant registry lands.
     uint64 public constant DEFAULT_WINDOW = 3 days;
@@ -50,6 +51,32 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow {
         holdId = _openHold(id, payer, merchant, token, amount, window);
 
         emit Charged(id, merchant, payer, holdId, token, amount, r.chargeCount);
+    }
+
+    /// Pays the merchant once the window closes and credits the payer's
+    /// standing with the settled value.
+    ///
+    /// Permissionless. The merchant has every reason to call it since that is
+    /// how it gets paid, and leaving it open means a stalled integration
+    /// cannot trap a payer's funds in escrow.
+    ///
+    /// The gross amount accrues, not the merchant's net. Standing measures
+    /// what the payer has moved cleanly through the system, and the protocol
+    /// fee is not the payer's business.
+    function finalize(uint256 holdId) external {
+        (address payer, uint256 amount) = _finalizeHold(holdId);
+        _recordCleanSettlement(payer, amount);
+    }
+
+    /// Returns a held charge to the payer before its window closes, and
+    /// records the reversal against their standing.
+    ///
+    /// UNCONDITIONAL FOR NOW. The vested, value-capped gate that stops this
+    /// being a free option is checked here once the thresholds land. Do not
+    /// ship without it.
+    function reverse(uint256 holdId) external {
+        address merchant = _reverseHold(holdId);
+        _recordReversal(msg.sender, merchant);
     }
 
     /// Postpaid charges bill for consumption that already happened, so they

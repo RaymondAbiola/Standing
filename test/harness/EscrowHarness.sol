@@ -9,6 +9,16 @@ import {Escrow} from "../../src/base/Escrow.sol";
 contract EscrowHarness is Escrow {
     constructor(address initialOwner) Escrow(initialOwner) {}
 
+    /// Escrow's settlement paths are internal now, with the external entry
+    /// points on Standing. These wrappers keep the vault testable on its own.
+    function finalize(uint256 holdId) external {
+        _finalizeHold(holdId);
+    }
+
+    function reverse(uint256 holdId) external {
+        _reverseHold(holdId);
+    }
+
     function open(
         bytes32 mandateId,
         address payer,

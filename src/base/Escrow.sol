@@ -148,22 +148,23 @@ abstract contract Escrow is Ownable2Step {
     }
 
     /// Pays the merchant once the window has closed, net of the fee the hold
-    /// was booked at.
+    /// was booked at. Returns what the caller needs to record the outcome.
     ///
-    /// Permissionless by design. The merchant has every reason to call it
-    /// since that is how it gets paid, and leaving it open means a stalled
-    /// merchant integration cannot trap a payer's funds in escrow.
+    /// Internal, with the external entry point one layer up. The vault knows
+    /// how to move money and nothing about reputation, so the module that
+    /// owns both does the sequencing.
     ///
     /// Status and accounting are written before the transfer. A hostile token
     /// reentering here finds the hold already marked Finalized and reverts.
-    function finalize(uint256 holdId) external {
+    function _finalizeHold(uint256 holdId) internal returns (address payer, uint256 amount) {
         Hold storage h = _hold(holdId);
         if (h.status != HoldStatus.Held) revert HoldNotOpen();
         if (block.timestamp < h.unlockAt) revert StillLocked(h.unlockAt);
 
         address token = h.token;
         address merchant = h.merchant;
-        uint256 amount = h.amount;
+        payer = h.payer;
+        amount = h.amount;
         uint256 fee = (amount * h.feeBps) / BPS_DENOMINATOR;
         uint256 paid = amount - fee;
 
@@ -176,7 +177,8 @@ abstract contract Escrow is Ownable2Step {
         emit HoldFinalized(holdId, merchant, token, paid, fee);
     }
 
-    /// Returns a held charge to the payer before its window closes.
+    /// Returns a held charge to the payer before its window closes. Returns
+    /// the merchant it was owed to, which the caller needs for dispersion.
     ///
     /// Payer only. Unlike finalize, this cannot be permissionless: it is the
     /// payer's remedy and nobody else's, and a third party able to trigger it
@@ -194,7 +196,7 @@ abstract contract Escrow is Ownable2Step {
     /// stops this from being a free option the payer can exercise every cycle,
     /// and it is checked here once the standing book lands. Do not ship
     /// without it.
-    function reverse(uint256 holdId) external {
+    function _reverseHold(uint256 holdId) internal returns (address merchant) {
         Hold storage h = _hold(holdId);
         if (h.status != HoldStatus.Held) revert HoldNotOpen();
         if (msg.sender != h.payer) revert NotHoldPayer();
@@ -202,6 +204,7 @@ abstract contract Escrow is Ownable2Step {
 
         address token = h.token;
         uint256 amount = h.amount;
+        merchant = h.merchant;
 
         h.status = HoldStatus.Reversed;
         _totalHeld[token] -= amount;

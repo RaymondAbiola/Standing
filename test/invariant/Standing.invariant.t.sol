@@ -167,6 +167,16 @@ contract StandingInvariantTest is Test {
         assertEq(charges, handler.holdsCreated(), "charges and holds disagree");
     }
 
+    /// Standing must equal what was actually settled. Every finalized hold
+    /// credits the payer exactly its gross amount, and nothing else does.
+    function invariant_standingMatchesSettlements() public view {
+        uint256 credited;
+        for (uint256 i; i < payers.length; ++i) {
+            credited += std.standingOf(payers[i]).cumulativeCleanSettled;
+        }
+        assertEq(credited, handler.finalizedTotal(), "standing drifted from settlements");
+    }
+
     /// A settled hold's outcome must match what left the contract, so fees
     /// can never exceed the ceiling on what was actually finalised.
     function invariant_feesWithinCeiling() public view {
