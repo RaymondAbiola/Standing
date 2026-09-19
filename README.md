@@ -43,7 +43,7 @@ Copy `.env.example` to `.env` and fill it before running anything against a netw
 
 | Network | Chain ID | Role | Standing |
 |---|---|---|---|
-| Arbitrum Sepolia | 421614 | Primary. Demo deployment judges can click through | not yet deployed |
+| Arbitrum Sepolia | 421614 | Primary. Demo deployment judges can click through | [`0x3d30b84664e33ce51015a6b310544f45d63aa5d3`](https://sepolia.arbiscan.io/address/0x3d30b84664e33ce51015a6b310544f45d63aa5d3) |
 | Robinhood Chain | 4663 | Mainnet, under a hard exposure cap | not yet deployed |
 | Robinhood Chain testnet | 46630 | Integration testing | not yet deployed |
 
