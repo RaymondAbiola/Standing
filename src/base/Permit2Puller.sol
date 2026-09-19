@@ -5,6 +5,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {IAllowanceTransfer} from "../interfaces/IAllowanceTransfer.sol";
 
+// Same address on every chain Standing targets: Arbitrum Sepolia, Robinhood
+// Chain and Robinhood Chain testnet, verified to hold identical bytecode.
+// File level so deploy scripts can read it without an instance.
+address constant CANONICAL_PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
+
 /// Moves funds from the payer into this contract through Permit2.
 ///
 /// Permit2 rather than a direct ERC-20 allowance because it gives the payer an
@@ -12,9 +17,6 @@ import {IAllowanceTransfer} from "../interfaces/IAllowanceTransfer.sol";
 /// A treasury will not hand a billing contract an open-ended approval, and the
 /// expiry doubles as a kill switch independent of mandate revocation.
 abstract contract Permit2Puller {
-    /// Same address on every chain Standing targets.
-    address public constant CANONICAL_PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-
     IAllowanceTransfer public immutable PERMIT2;
 
     error ZeroPermit2();

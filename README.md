@@ -41,15 +41,32 @@ Copy `.env.example` to `.env` and fill it before running anything against a netw
 
 ## Networks
 
-| Network | Chain ID | Role |
-|---|---|---|
-| Arbitrum Sepolia | 421614 | Primary. Demo deployment judges can click through |
-| Robinhood Chain | 4663 | Mainnet, deployed under a hard exposure cap |
-| Robinhood Chain testnet | 46630 | Integration testing |
+| Network | Chain ID | Role | Standing |
+|---|---|---|---|
+| Arbitrum Sepolia | 421614 | Primary. Demo deployment judges can click through | not yet deployed |
+| Robinhood Chain | 4663 | Mainnet, under a hard exposure cap | not yet deployed |
+| Robinhood Chain testnet | 46630 | Integration testing | not yet deployed |
+
+Permit2 sits at `0x000000000022D473030F116dDEE9F6B43aC78BA3` on all three, with
+identical bytecode.
 
 The Robinhood Chain public RPC is rate limited and not meant for production load.
 
+### Deploying
+
+```
+forge script script/Deploy.s.sol --rpc-url arbitrum_sepolia \
+  --private-key $PRIVATE_KEY --broadcast --verify -vvv
+```
+
+The script asserts the Permit2 address holds code before deploying, since
+pointing at an empty address would produce a contract that reverts on every
+charge.
+
 ## Status
 
-Buildathon work in progress. Contracts are unaudited. Mainnet deployments carry a documented
-per-mandate cap and total exposure limit, stated in the deploy script.
+Buildathon work in progress. Contracts are unaudited.
+
+**v0 has no escrow window.** Mandates, cadence and caps are enforced, but a charge pays the
+merchant in the same call, so there is nothing to reverse yet. The window and earned reversal
+rights land next, and `charge` changes shape when they do.
