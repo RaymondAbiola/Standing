@@ -27,6 +27,23 @@ jobs:
       - name: Tests
         run: forge test -vvv
 
+  # Separate and non-blocking: these hit a public rate-limited endpoint, so a
+  # network hiccup must not red the build. The hermetic suite above is the gate.
+  fork:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      ARBITRUM_SEPOLIA_RPC_URL: https://sepolia-rollup.arbitrum.io/rpc
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Fork tests against deployed Permit2
+        run: forge test --match-path 'test/fork/*' -vvv
+
   lint:
     runs-on: ubuntu-latest
     steps:
