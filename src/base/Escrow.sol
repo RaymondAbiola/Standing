@@ -196,11 +196,19 @@ abstract contract Escrow is Ownable2Step {
     /// stops this from being a free option the payer can exercise every cycle,
     /// and it is checked here once the standing book lands. Do not ship
     /// without it.
-    function _reverseHold(uint256 holdId) internal returns (address merchant) {
-        Hold storage h = _hold(holdId);
+    /// Split from the execution so a caller can insert its own conditions
+    /// after these and before the money moves. Order matters: a hold that is
+    /// settled, not yours, or out of window can never be reversed whatever
+    /// your standing, so those reasons have to be reported first.
+    function _requireReversible(uint256 holdId) internal view returns (Hold storage h) {
+        h = _hold(holdId);
         if (h.status != HoldStatus.Held) revert HoldNotOpen();
         if (msg.sender != h.payer) revert NotHoldPayer();
         if (block.timestamp >= h.unlockAt) revert WindowClosed(h.unlockAt);
+    }
+
+    function _executeReversal(uint256 holdId) internal returns (address merchant) {
+        Hold storage h = _holds[holdId];
 
         address token = h.token;
         uint256 amount = h.amount;

@@ -25,16 +25,28 @@ struct PayerStanding {
     uint8 recentCount;
 }
 
-/// Records what payers do, so the reversal gate has something to read.
+/// Records what payers do and answers what their standing is.
 ///
-/// This module holds no policy. It counts outcomes and exposes them. Whether
-/// a given payer may reverse a given hold is decided by the code that reads
-/// this, which keeps the accounting testable on its own.
+/// Counting and the derived reads live here together, so the frontend has one
+/// place to ask about a payer. Enforcement does not: whether a given payer may
+/// reverse a given hold is decided by the module that owns both the standing
+/// and the escrow, which keeps this testable on its own.
 abstract contract StandingBook {
     /// Outcomes considered when judging a reversal rate. Ten is long enough
     /// to be meaningful and short enough that a payer can recover from a bad
     /// run rather than carrying it forever.
     uint8 public constant RATE_WINDOW = 10;
+
+    /// A payer may reverse a hold worth at most this fraction of what they
+    /// have settled cleanly.
+    ///
+    /// This is what closes reputation laundering. Without it, vesting cheaply
+    /// on a dollar-a-month service would unlock the right to reverse an
+    /// enterprise plan, so the cheapest possible history would gate the most
+    /// expensive possible theft. Tying the ceiling to accumulated value means
+    /// the asset a payer destroys by abusing the right scales with the size of
+    /// the theft it enables.
+    uint256 public constant CEILING_DIVISOR = 3;
 
     event StandingSettled(address indexed payer, uint256 amount, uint256 cumulativeCleanSettled);
     event StandingReversed(address indexed payer, address indexed merchant, uint32 distinctMerchants);
@@ -65,6 +77,11 @@ abstract contract StandingBook {
     function sampleSize(address payer) public view returns (uint8) {
         uint8 n = _standing[payer].recentCount;
         return n < RATE_WINDOW ? n : RATE_WINDOW;
+    }
+
+    /// The largest single hold this payer may reverse right now.
+    function reversalCeiling(address payer) public view returns (uint256) {
+        return _standing[payer].cumulativeCleanSettled / CEILING_DIVISOR;
     }
 
     function hasReversedAgainst(address payer, address merchant) external view returns (bool) {

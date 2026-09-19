@@ -16,7 +16,8 @@ contract EscrowHarness is Escrow {
     }
 
     function reverse(uint256 holdId) external {
-        _reverseHold(holdId);
+        _requireReversible(holdId);
+        _executeReversal(holdId);
     }
 
     function open(

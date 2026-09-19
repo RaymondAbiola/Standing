@@ -77,6 +77,20 @@ contract StandingTest is Test {
         return _create(_terms(payer, address(token), ChargeKind.Prepaid, bytes32(uint256(1))));
     }
 
+    /// Settles clean cycles until the payer's ceiling covers `target`.
+    ///
+    /// Needed because a reversal is no longer free: the ceiling is a third of
+    /// what the payer has settled cleanly, so reversing a full 30e6 charge
+    /// takes 90e6 of clean history first.
+    function _buildStanding(bytes32 id, uint256 target) internal {
+        while (std.reversalCeiling(payer) < target) {
+            uint256 h = std.charge(id, 30e6);
+            vm.warp(block.timestamp + window);
+            std.finalize(h);
+            vm.warp(block.timestamp + 30 days);
+        }
+    }
+
     function _solvent() internal view {
         assertGe(
             token.balanceOf(address(std)),
@@ -136,6 +150,8 @@ contract StandingTest is Test {
         assertEq(std.getHold(h).unlockAt, uint64(block.timestamp));
         assertTrue(std.isHoldUnlocked(h));
 
+        // Reported as a closed window rather than a low ceiling: a postpaid
+        // charge is never reversible whatever the payer's standing.
         vm.prank(payer);
         vm.expectRevert(abi.encodeWithSelector(Escrow.WindowClosed.selector, uint64(block.timestamp)));
         std.reverse(h);
@@ -149,6 +165,15 @@ contract StandingTest is Test {
         _arm(address(safe), token);
 
         bytes32 id = _create(_terms(address(safe), address(token), ChargeKind.Prepaid, bytes32(uint256(8))));
+
+        // Standing is per payer, so the Safe has to earn its own.
+        while (std.reversalCeiling(address(safe)) < 30e6) {
+            uint256 warm = std.charge(id, 30e6);
+            vm.warp(block.timestamp + window);
+            std.finalize(warm);
+            vm.warp(block.timestamp + 30 days);
+        }
+
         uint256 h = std.charge(id, 30e6);
 
         vm.prank(address(safe));
@@ -160,14 +185,17 @@ contract StandingTest is Test {
 
     function test_payerReversesAndMerchantGetsNothing() public {
         bytes32 id = _mandate();
-        uint256 before = token.balanceOf(payer);
+        _buildStanding(id, 30e6);
+
+        uint256 payerBefore = token.balanceOf(payer);
+        uint256 merchantBefore = token.balanceOf(merchant);
         uint256 h = std.charge(id, 30e6);
 
         vm.prank(payer);
         std.reverse(h);
 
-        assertEq(token.balanceOf(payer), before, "made whole");
-        assertEq(token.balanceOf(merchant), 0);
+        assertEq(token.balanceOf(payer), payerBefore, "made whole");
+        assertEq(token.balanceOf(merchant), merchantBefore, "merchant gained nothing");
         assertEq(std.totalHeld(address(token)), 0);
         _solvent();
     }
@@ -176,6 +204,9 @@ contract StandingTest is Test {
     /// against cadence, so a merchant cannot retry inside the interval.
     function test_reversalDoesNotResetCadence() public {
         bytes32 id = _mandate();
+        _buildStanding(id, 30e6);
+
+        uint32 chargesBefore = std.getMandate(id).chargeCount;
         uint256 h = std.charge(id, 30e6);
         vm.prank(payer);
         std.reverse(h);
@@ -184,7 +215,7 @@ contract StandingTest is Test {
         assertEq(std.nextChargeAt(id), due);
         vm.expectRevert(abi.encodeWithSelector(MandateRegistry.TooSoon.selector, due));
         std.charge(id, 30e6);
-        assertEq(std.getMandate(id).chargeCount, 1);
+        assertEq(std.getMandate(id).chargeCount, chargesBefore + 1, "the reversed charge still counts");
     }
 
     /// Revoking mid-window must not strand or redirect funds already pulled:
@@ -205,6 +236,8 @@ contract StandingTest is Test {
 
     function test_revokeMidWindowStillAllowsReversal() public {
         bytes32 id = _mandate();
+        _buildStanding(id, 30e6);
+
         uint256 h = std.charge(id, 30e6);
 
         vm.startPrank(payer);
@@ -213,6 +246,116 @@ contract StandingTest is Test {
         vm.stopPrank();
 
         assertEq(uint8(std.getHold(h).status), uint8(HoldStatus.Reversed));
+    }
+
+    // --- reversal ceiling ---
+
+    /// A fresh address has settled nothing, so its ceiling is zero and it can
+    /// reverse nothing. This is what stops a first-ever reversal from being a
+    /// free option.
+    function test_noStandingMeansNoReversal() public {
+        bytes32 id = _mandate();
+        uint256 h = std.charge(id, 30e6);
+
+        assertEq(std.reversalCeiling(payer), 0);
+        vm.prank(payer);
+        vm.expectRevert(abi.encodeWithSelector(Standing.AboveReversalCeiling.selector, uint256(0)));
+        std.reverse(h);
+    }
+
+    function test_ceilingIsAThirdOfCleanSettled() public {
+        bytes32 id = _mandate();
+        uint256 h = std.charge(id, 30e6);
+        vm.warp(block.timestamp + window);
+        std.finalize(h);
+
+        assertEq(std.standingOf(payer).cumulativeCleanSettled, 30e6);
+        assertEq(std.reversalCeiling(payer), 10e6);
+    }
+
+    function test_reversalAtExactlyTheCeilingIsAllowed() public {
+        bytes32 id = _mandate();
+        _buildStanding(id, 30e6);
+        assertEq(std.reversalCeiling(payer), 30e6);
+
+        uint256 h = std.charge(id, 30e6);
+        vm.prank(payer);
+        std.reverse(h);
+        assertEq(uint8(std.getHold(h).status), uint8(HoldStatus.Reversed));
+    }
+
+    function test_oneWeiAboveTheCeilingIsRefused() public {
+        bytes32 id = _mandate();
+        uint256 h = std.charge(id, 30e6);
+        vm.warp(block.timestamp + window);
+        std.finalize(h);
+        vm.warp(block.timestamp + 30 days);
+
+        uint256 ceiling = std.reversalCeiling(payer);
+        uint256 h2 = std.charge(id, ceiling + 1);
+
+        vm.prank(payer);
+        vm.expectRevert(abi.encodeWithSelector(Standing.AboveReversalCeiling.selector, ceiling));
+        std.reverse(h2);
+
+        uint256 h3;
+        vm.warp(block.timestamp + 30 days);
+        h3 = std.charge(id, ceiling);
+        vm.prank(payer);
+        std.reverse(h3);
+    }
+
+    /// The ceiling tracks value, not the number of settlements. Thirty small
+    /// clean cycles unlock exactly as much as one large one of the same total,
+    /// so padding a history with cheap payments buys nothing.
+    function test_ceilingTracksValueNotCount() public {
+        bytes32 many = _mandate();
+        Mandate memory m = _terms(payer, address(token), ChargeKind.Prepaid, bytes32(uint256(20)));
+        m.minInterval = 1;
+        bytes32 small = _create(m);
+
+        for (uint256 i; i < 30; ++i) {
+            uint256 h = std.charge(small, 1e6);
+            vm.warp(block.timestamp + window);
+            std.finalize(h);
+            vm.warp(block.timestamp + 1);
+        }
+        uint256 ceilingFromMany = std.reversalCeiling(payer);
+        assertEq(ceilingFromMany, 10e6, "30e6 settled in small pieces");
+        assertEq(std.standingOf(payer).cleanSettlements, 30);
+
+        uint256 big = std.charge(many, 30e6);
+        vm.warp(block.timestamp + window);
+        std.finalize(big);
+        assertEq(std.reversalCeiling(payer), 20e6, "one 30e6 cycle added the same value");
+    }
+
+    function test_ceilingGrowsWithHistory() public {
+        bytes32 id = _mandate();
+        uint256 last;
+        for (uint256 i; i < 4; ++i) {
+            uint256 h = std.charge(id, 30e6);
+            vm.warp(block.timestamp + window);
+            std.finalize(h);
+            uint256 now_ = std.reversalCeiling(payer);
+            assertGt(now_, last, "each clean cycle raises it");
+            last = now_;
+            vm.warp(block.timestamp + 30 days);
+        }
+        assertEq(last, 40e6);
+    }
+
+    /// A reversal earns no standing, so it cannot fund the next one.
+    function test_reversalDoesNotRaiseTheCeiling() public {
+        bytes32 id = _mandate();
+        _buildStanding(id, 30e6);
+        uint256 ceilingBefore = std.reversalCeiling(payer);
+
+        uint256 h = std.charge(id, 30e6);
+        vm.prank(payer);
+        std.reverse(h);
+
+        assertEq(std.reversalCeiling(payer), ceilingBefore, "unchanged");
     }
 
     // --- revert branches ---
@@ -393,6 +536,7 @@ contract StandingTest is Test {
 
         bytes32 id = _mandate();
         uint256 each = bound(amount, 1, 30e6);
+        _buildStanding(id, each);
 
         for (uint256 i; i < 6; ++i) {
             uint256 h = std.charge(id, each);

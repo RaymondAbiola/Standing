@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {Escrow} from "./base/Escrow.sol";
+import {Escrow, Hold} from "./base/Escrow.sol";
 import {MandateRecord, MandateRegistry} from "./base/MandateRegistry.sol";
 import {Permit2Puller} from "./base/Permit2Puller.sol";
 import {StandingBook} from "./base/StandingBook.sol";
@@ -17,6 +17,8 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook {
     /// Placeholder policy. The window becomes a function of merchant history,
     /// shortening as a merchant earns trust, once the merchant registry lands.
     uint64 public constant DEFAULT_WINDOW = 3 days;
+
+    error AboveReversalCeiling(uint256 ceiling);
 
     event Charged(
         bytes32 indexed id,
@@ -71,11 +73,21 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook {
     /// Returns a held charge to the payer before its window closes, and
     /// records the reversal against their standing.
     ///
-    /// UNCONDITIONAL FOR NOW. The vested, value-capped gate that stops this
-    /// being a free option is checked here once the thresholds land. Do not
-    /// ship without it.
+    /// The ceiling is read against the hold's payer rather than the caller, so
+    /// a stranger's attempt still fails on `NotHoldPayer` inside
+    /// `_reverseHold` rather than on a ceiling that is not theirs.
+    ///
+    /// STILL INCOMPLETE. The value ceiling is enforced, but a first-ever
+    /// reversal from an address with no history is not yet refused, and an
+    /// abusive pattern does not yet suspend the right. Do not ship until both
+    /// land.
     function reverse(uint256 holdId) external {
-        address merchant = _reverseHold(holdId);
+        Hold storage h = _requireReversible(holdId);
+
+        uint256 ceiling = reversalCeiling(h.payer);
+        if (h.amount > ceiling) revert AboveReversalCeiling(ceiling);
+
+        address merchant = _executeReversal(holdId);
         _recordReversal(msg.sender, merchant);
     }
 

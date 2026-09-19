@@ -158,6 +158,9 @@ contract StandingHandler is CommonBase, StdCheats, StdUtils {
             uint256 holdId = _holds[(start + k) % n];
             Hold memory h = STANDING.getHold(holdId);
             if (h.status != HoldStatus.Held || block.timestamp >= h.unlockAt) continue;
+            // The ceiling gates most reversals now, so scanning without it
+            // spends the call on a hold this payer cannot touch.
+            if (h.amount > STANDING.reversalCeiling(h.payer)) continue;
 
             vm.prank(h.payer);
             try STANDING.reverse(holdId) {
