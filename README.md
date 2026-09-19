@@ -67,6 +67,11 @@ charge.
 
 Buildathon work in progress. Contracts are unaudited.
 
-**v0 has no escrow window.** Mandates, cadence and caps are enforced, but a charge pays the
-merchant in the same call, so there is nothing to reverse yet. The window and earned reversal
-rights land next, and `charge` changes shape when they do.
+A charge pulls through Permit2 and books the funds into escrow behind an unlock time. Anyone can
+call `finalize` once the window closes, which pays the merchant.
+
+**Reversal is not wired yet.** The window exists and holds real funds, but nothing can pull a hold
+back inside it. Earned reversal rights land next.
+
+The deployed Arbitrum Sepolia address above predates escrow and pays merchants directly. It will be
+redeployed.

@@ -1,28 +1,27 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-
+import {Escrow} from "./base/Escrow.sol";
 import {MandateRecord, MandateRegistry} from "./base/MandateRegistry.sol";
 import {Permit2Puller} from "./base/Permit2Puller.sol";
+import {ChargeKind} from "./types/Mandate.sol";
 
 /// Standing: recurring stablecoin payments with recourse.
 ///
-/// v0. The mandate, its cadence and its caps are in place and enforced. The
-/// escrow window is not: a charge pays the merchant in the same call, so there
-/// is nothing to reverse yet. `charge` changes shape when escrow lands and the
-/// payout moves behind an unlock time.
-///
-/// Deployed early on testnet on purpose, to prove the deploy and verification
-/// path rather than discovering it on the last day.
-contract Standing is MandateRegistry, Permit2Puller {
-    using SafeERC20 for IERC20;
+/// A charge pulls from the payer through Permit2 and books the funds into
+/// escrow behind an unlock time. The merchant is paid when the window closes.
+/// Earned reversal rights, which decide whether a payer may pull a hold back
+/// inside that window, land next.
+contract Standing is MandateRegistry, Permit2Puller, Escrow {
+    /// Placeholder policy. The window becomes a function of merchant history,
+    /// shortening as a merchant earns trust, once the merchant registry lands.
+    uint64 public constant DEFAULT_WINDOW = 3 days;
 
     event Charged(
         bytes32 indexed id,
         address indexed merchant,
         address indexed payer,
+        uint256 holdId,
         address token,
         uint256 amount,
         uint32 chargeCount
@@ -33,21 +32,29 @@ contract Standing is MandateRegistry, Permit2Puller {
     /// Permissionless. The merchant normally calls it, which is the right
     /// incentive since the merchant wants the revenue and pays the gas.
     ///
-    /// `_recordCharge` runs before the pull, not after. The pull hands control
-    /// to the token, and a hostile token that reentered while `lastChargeAt`
-    /// still held its old value would clear the cadence check twice. Note the
-    /// exact-transfer guard does not cover this case here, because forwarding
-    /// to the merchant leaves the measured balance delta looking correct.
-    function charge(bytes32 id, uint256 amount) external {
+    /// Ordering is load bearing. `_recordCharge` runs before the pull, because
+    /// the pull hands control to the token and a hostile token reentering
+    /// while `lastChargeAt` still held its old value would clear the cadence
+    /// check twice. The hold is booked after the funds have actually arrived,
+    /// so escrow never promises money it does not hold.
+    function charge(bytes32 id, uint256 amount) external returns (uint256 holdId) {
         MandateRecord storage r = _requireChargeable(id, amount);
         _recordCharge(r);
 
         address token = r.terms.token;
+        address payer = r.terms.payer;
         address merchant = r.terms.merchant;
+        uint64 window = _windowFor(r.terms.chargeKind);
 
-        _pullExact(token, r.terms.payer, amount);
-        IERC20(token).safeTransfer(merchant, amount);
+        _pullExact(token, payer, amount);
+        holdId = _openHold(id, payer, merchant, token, amount, window);
 
-        emit Charged(id, merchant, r.terms.payer, token, amount, r.chargeCount);
+        emit Charged(id, merchant, payer, holdId, token, amount, r.chargeCount);
+    }
+
+    /// Postpaid charges bill for consumption that already happened, so they
+    /// carry no reversal right and settle without a window.
+    function _windowFor(ChargeKind kind) internal pure returns (uint64) {
+        return kind == ChargeKind.Postpaid ? 0 : DEFAULT_WINDOW;
     }
 }

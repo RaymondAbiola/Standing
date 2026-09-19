@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+
 enum HoldStatus {
     None,
     Held,
@@ -29,6 +32,8 @@ struct Hold {
 /// which is what lets it become a function of merchant history later without
 /// touching this module.
 abstract contract Escrow {
+    using SafeERC20 for IERC20;
+
     /// Caps how long a merchant's money can sit unsettled. A window longer
     /// than this is not a dispute period, it is a merchant financing the
     /// protocol, and no merchant would accept it.
@@ -36,6 +41,10 @@ abstract contract Escrow {
 
     error WindowTooLong(uint64 maxWindow);
     error UnknownHold();
+    error HoldNotOpen();
+    error StillLocked(uint64 unlockAt);
+
+    event HoldFinalized(uint256 indexed holdId, address indexed merchant, address token, uint256 amount);
 
     event HoldOpened(
         uint256 indexed holdId,
@@ -83,6 +92,31 @@ abstract contract Escrow {
         return h.unlockAt - uint64(block.timestamp);
     }
 
+    /// Pays the merchant once the window has closed.
+    ///
+    /// Permissionless by design. The merchant has every reason to call it
+    /// since that is how it gets paid, and leaving it open means a stalled
+    /// merchant integration cannot trap a payer's funds in escrow.
+    ///
+    /// Status and accounting are written before the transfer. A hostile token
+    /// reentering here finds the hold already marked Finalized and reverts.
+    function finalize(uint256 holdId) external {
+        Hold storage h = _hold(holdId);
+        if (h.status != HoldStatus.Held) revert HoldNotOpen();
+        if (block.timestamp < h.unlockAt) revert StillLocked(h.unlockAt);
+
+        address token = h.token;
+        address merchant = h.merchant;
+        uint256 amount = h.amount;
+
+        h.status = HoldStatus.Finalized;
+        _totalHeld[token] -= amount;
+
+        IERC20(token).safeTransfer(merchant, amount);
+
+        emit HoldFinalized(holdId, merchant, token, amount);
+    }
+
     /// Books a hold. The funds must already be in this contract: callers pull
     /// first and book second, so a hold never promises money that never
     /// arrived.
@@ -120,9 +154,5 @@ abstract contract Escrow {
     function _hold(uint256 holdId) internal view returns (Hold storage h) {
         h = _holds[holdId];
         if (h.status == HoldStatus.None) revert UnknownHold();
-    }
-
-    function _releaseAccounting(address token, uint256 amount) internal {
-        _totalHeld[token] -= amount;
     }
 }
