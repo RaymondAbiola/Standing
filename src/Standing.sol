@@ -27,7 +27,7 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow {
         uint32 chargeCount
     );
 
-    constructor(address permit2) Permit2Puller(permit2) {}
+    constructor(address permit2, address initialOwner) Permit2Puller(permit2) Escrow(initialOwner) {}
 
     /// Permissionless. The merchant normally calls it, which is the right
     /// incentive since the merchant wants the revenue and pays the gas.

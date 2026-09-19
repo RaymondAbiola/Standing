@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
@@ -14,7 +15,7 @@ enum HoldStatus {
 /// One charge sitting in the reversal window. Fields are copied from the
 /// mandate at charge time rather than read back later, so a hold settles on
 /// the terms that were in force when it was taken even if the mandate is
-/// revoked in the meantime.
+/// revoked in the meantime. `feeBps` is snapshotted for the same reason.
 struct Hold {
     bytes32 mandateId;
     address payer;
@@ -23,6 +24,7 @@ struct Hold {
     uint256 amount;
     uint64 unlockAt;
     HoldStatus status;
+    uint16 feeBps;
 }
 
 /// The vault side of the window: funds land here on a charge and leave only
@@ -31,7 +33,7 @@ struct Hold {
 /// Holds carry no policy. How long a window lasts is the caller's decision,
 /// which is what lets it become a function of merchant history later without
 /// touching this module.
-abstract contract Escrow {
+abstract contract Escrow is Ownable2Step {
     using SafeERC20 for IERC20;
 
     /// Caps how long a merchant's money can sit unsettled. A window longer
@@ -39,16 +41,27 @@ abstract contract Escrow {
     /// protocol, and no merchant would accept it.
     uint64 public constant MAX_WINDOW = 30 days;
 
+    /// Hard ceiling on the protocol fee, enforced in code rather than left to
+    /// the owner's discretion. A fee the owner can raise without limit is a
+    /// reason not to integrate.
+    uint16 public constant MAX_FEE_BPS = 100;
+
+    uint256 private constant BPS_DENOMINATOR = 10_000;
+
     error WindowTooLong(uint64 maxWindow);
     error UnknownHold();
     error HoldNotOpen();
     error StillLocked(uint64 unlockAt);
     error NotHoldPayer();
     error WindowClosed(uint64 unlockAt);
+    error FeeTooHigh(uint16 maxFeeBps);
+    error ZeroRecipient();
 
     event HoldReversed(uint256 indexed holdId, address indexed payer, address token, uint256 amount);
 
-    event HoldFinalized(uint256 indexed holdId, address indexed merchant, address token, uint256 amount);
+    event HoldFinalized(
+        uint256 indexed holdId, address indexed merchant, address token, uint256 paid, uint256 fee
+    );
 
     event HoldOpened(
         uint256 indexed holdId,
@@ -60,14 +73,25 @@ abstract contract Escrow {
         uint64 unlockAt
     );
 
+    event FeeBpsUpdated(uint16 feeBps);
+    event FeesSwept(address indexed token, address indexed to, uint256 amount);
+
     /// Ids start at 1 so that zero reads as absent.
     uint256 private _nextHoldId = 1;
+
+    uint16 private _feeBps;
 
     mapping(uint256 holdId => Hold hold) private _holds;
 
     /// Sum of open holds per token. The contract's balance of a token must
-    /// always cover this, which is the core solvency invariant.
+    /// always cover this plus accrued fees, which is the solvency invariant.
     mapping(address token => uint256 amount) private _totalHeld;
+
+    /// Fees taken at settlement, held here until swept. Tracked apart from
+    /// `_totalHeld` so a sweep can never reach into escrowed principal.
+    mapping(address token => uint256 amount) private _accruedFees;
+
+    constructor(address initialOwner) Ownable(initialOwner) {}
 
     function getHold(uint256 holdId) external view returns (Hold memory) {
         return _holds[holdId];
@@ -77,8 +101,35 @@ abstract contract Escrow {
         return _totalHeld[token];
     }
 
+    function accruedFees(address token) external view returns (uint256) {
+        return _accruedFees[token];
+    }
+
     function nextHoldId() external view returns (uint256) {
         return _nextHoldId;
+    }
+
+    function feeBps() external view returns (uint16) {
+        return _feeBps;
+    }
+
+    /// Applies to charges taken from here on. Open holds keep the rate they
+    /// were booked at, so raising the fee cannot reach money already in
+    /// escrow.
+    function setFeeBps(uint16 newFeeBps) external onlyOwner {
+        if (newFeeBps > MAX_FEE_BPS) revert FeeTooHigh(MAX_FEE_BPS);
+        _feeBps = newFeeBps;
+        emit FeeBpsUpdated(newFeeBps);
+    }
+
+    function sweepFees(address token, address to) external onlyOwner returns (uint256 amount) {
+        if (to == address(0)) revert ZeroRecipient();
+
+        amount = _accruedFees[token];
+        _accruedFees[token] = 0;
+
+        IERC20(token).safeTransfer(to, amount);
+        emit FeesSwept(token, to, amount);
     }
 
     /// True once the window has closed. False for an unknown or already
@@ -96,7 +147,8 @@ abstract contract Escrow {
         return h.unlockAt - uint64(block.timestamp);
     }
 
-    /// Pays the merchant once the window has closed.
+    /// Pays the merchant once the window has closed, net of the fee the hold
+    /// was booked at.
     ///
     /// Permissionless by design. The merchant has every reason to call it
     /// since that is how it gets paid, and leaving it open means a stalled
@@ -112,13 +164,16 @@ abstract contract Escrow {
         address token = h.token;
         address merchant = h.merchant;
         uint256 amount = h.amount;
+        uint256 fee = (amount * h.feeBps) / BPS_DENOMINATOR;
+        uint256 paid = amount - fee;
 
         h.status = HoldStatus.Finalized;
         _totalHeld[token] -= amount;
+        if (fee != 0) _accruedFees[token] += fee;
 
-        IERC20(token).safeTransfer(merchant, amount);
+        IERC20(token).safeTransfer(merchant, paid);
 
-        emit HoldFinalized(holdId, merchant, token, amount);
+        emit HoldFinalized(holdId, merchant, token, paid, fee);
     }
 
     /// Returns a held charge to the payer before its window closes.
@@ -126,6 +181,10 @@ abstract contract Escrow {
     /// Payer only. Unlike finalize, this cannot be permissionless: it is the
     /// payer's remedy and nobody else's, and a third party able to trigger it
     /// could grief a merchant at will.
+    ///
+    /// The payer is made whole with no fee deducted. Charging for a reversal
+    /// would price the remedy, and a remedy that costs money to use is not
+    /// one most payers would ever exercise.
     ///
     /// Postpaid charges need no special case here. They settle with a zero
     /// window, so they are already past `unlockAt` when the hold is booked and
@@ -178,7 +237,8 @@ abstract contract Escrow {
             token: token,
             amount: amount,
             unlockAt: unlockAt,
-            status: HoldStatus.Held
+            status: HoldStatus.Held,
+            feeBps: _feeBps
         });
 
         _totalHeld[token] += amount;

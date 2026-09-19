@@ -17,12 +17,17 @@ contract Deploy is Script {
         address permit2 = vm.envOr("PERMIT2", CANONICAL_PERMIT2);
         require(permit2.code.length > 0, "Deploy: no code at Permit2 address");
 
+        // Owner controls only the fee, within a hard-coded ceiling, and
+        // sweeping accrued fees. It can never touch escrowed principal.
+        address owner = vm.envOr("OWNER", msg.sender);
+
         vm.startBroadcast();
-        standing = new Standing(permit2);
+        standing = new Standing(permit2, owner);
         vm.stopBroadcast();
 
         console.log("chainId ", block.chainid);
         console.log("permit2 ", permit2);
+        console.log("owner   ", owner);
         console.log("Standing", address(standing));
     }
 }
