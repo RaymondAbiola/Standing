@@ -77,14 +77,23 @@ contract StandingTest is Test {
         return _create(_terms(payer, address(token), ChargeKind.Prepaid, bytes32(uint256(1))));
     }
 
-    /// Settles clean cycles until the payer's ceiling covers `target`.
+    /// Settles clean cycles until the payer can actually reverse `target`.
     ///
-    /// Needed because a reversal is no longer free: the ceiling is a third of
-    /// what the payer has settled cleanly, so reversing a full 30e6 charge
-    /// takes 90e6 of clean history first.
+    /// Both gates have to be satisfied, and they are independent: vesting
+    /// needs a number of clean cycles, the ceiling needs a value. A single
+    /// large settlement clears the ceiling but not vesting.
     function _buildStanding(bytes32 id, uint256 target) internal {
-        while (std.reversalCeiling(payer) < target) {
+        while (!std.isVested(payer) || std.reversalCeiling(payer) < target) {
             uint256 h = std.charge(id, 30e6);
+            vm.warp(block.timestamp + window);
+            std.finalize(h);
+            vm.warp(block.timestamp + 30 days);
+        }
+    }
+
+    function _settleCycles(bytes32 id, uint256 amount, uint256 n) internal {
+        for (uint256 i; i < n; ++i) {
+            uint256 h = std.charge(id, amount);
             vm.warp(block.timestamp + window);
             std.finalize(h);
             vm.warp(block.timestamp + 30 days);
@@ -258,9 +267,69 @@ contract StandingTest is Test {
         uint256 h = std.charge(id, 30e6);
 
         assertEq(std.reversalCeiling(payer), 0);
+        assertFalse(std.isVested(payer));
+
         vm.prank(payer);
-        vm.expectRevert(abi.encodeWithSelector(Standing.AboveReversalCeiling.selector, uint256(0)));
+        vm.expectRevert(abi.encodeWithSelector(Standing.NotVested.selector, uint32(0), uint32(3)));
         std.reverse(h);
+    }
+
+    /// The case the ceiling alone does not cover. One clean settlement leaves
+    /// a ceiling large enough to reverse the next charge outright, so without
+    /// vesting a single payment would buy an immediate right.
+    function test_oneLargeSettlementClearsCeilingButNotVesting() public {
+        bytes32 id = _mandate();
+        _settleCycles(id, 30e6, 1);
+
+        assertEq(std.reversalCeiling(payer), 10e6, "ceiling would permit it");
+        assertFalse(std.isVested(payer), "but no right exists yet");
+
+        uint256 h = std.charge(id, 10e6);
+        vm.prank(payer);
+        vm.expectRevert(abi.encodeWithSelector(Standing.NotVested.selector, uint32(1), uint32(3)));
+        std.reverse(h);
+    }
+
+    function test_vestsAtExactlyThreeCleanCycles() public {
+        bytes32 id = _mandate();
+
+        for (uint32 i = 1; i <= 2; ++i) {
+            _settleCycles(id, 30e6, 1);
+            assertFalse(std.isVested(payer));
+            assertEq(std.cyclesUntilVested(payer), 3 - i);
+        }
+
+        _settleCycles(id, 30e6, 1);
+        assertTrue(std.isVested(payer));
+        assertEq(std.cyclesUntilVested(payer), 0);
+
+        uint256 h = std.charge(id, 30e6);
+        vm.prank(payer);
+        std.reverse(h);
+        assertEq(uint8(std.getHold(h).status), uint8(HoldStatus.Reversed));
+    }
+
+    /// Only clean settlements vest the right. A reversal is not progress
+    /// toward earning the ability to reverse again.
+    function test_reversalsDoNotCountTowardVesting() public {
+        bytes32 id = _mandate();
+        _settleCycles(id, 30e6, 3);
+        assertTrue(std.isVested(payer));
+
+        uint256 h = std.charge(id, 30e6);
+        vm.prank(payer);
+        std.reverse(h);
+
+        assertEq(std.cleanSettlementsOf(payer), 3, "still three, the reversal added none");
+    }
+
+    function test_vestingIsPerPayer() public {
+        bytes32 id = _mandate();
+        _settleCycles(id, 30e6, 3);
+
+        assertTrue(std.isVested(payer));
+        assertFalse(std.isVested(merchant));
+        assertEq(std.cyclesUntilVested(makeAddr("stranger")), 3);
     }
 
     function test_ceilingIsAThirdOfCleanSettled() public {
@@ -286,23 +355,22 @@ contract StandingTest is Test {
 
     function test_oneWeiAboveTheCeilingIsRefused() public {
         bytes32 id = _mandate();
-        uint256 h = std.charge(id, 30e6);
-        vm.warp(block.timestamp + window);
-        std.finalize(h);
-        vm.warp(block.timestamp + 30 days);
+        _settleCycles(id, 10e6, 3); // vested, 30e6 settled, ceiling 10e6
 
         uint256 ceiling = std.reversalCeiling(payer);
-        uint256 h2 = std.charge(id, ceiling + 1);
+        assertEq(ceiling, 10e6);
+        assertTrue(std.isVested(payer));
 
+        uint256 above = std.charge(id, ceiling + 1);
         vm.prank(payer);
         vm.expectRevert(abi.encodeWithSelector(Standing.AboveReversalCeiling.selector, ceiling));
-        std.reverse(h2);
+        std.reverse(above);
 
-        uint256 h3;
         vm.warp(block.timestamp + 30 days);
-        h3 = std.charge(id, ceiling);
+        uint256 exact = std.charge(id, ceiling);
         vm.prank(payer);
-        std.reverse(h3);
+        std.reverse(exact);
+        assertEq(uint8(std.getHold(exact).status), uint8(HoldStatus.Reversed));
     }
 
     /// The ceiling tracks value, not the number of settlements. Thirty small

@@ -26,6 +26,12 @@ contract StandingInvariantTest is Test {
     uint256 internal constant MINT_EACH = 1_000_000e6;
     uint256 internal totalMinted;
 
+    /// Clean value settled before the handler takes over, so the fuzzer
+    /// explores a system with established payers rather than only a cold
+    /// start where nobody is vested and no reversal is reachable.
+    uint256 internal warmupSettled;
+    uint256 internal warmupHolds;
+
     function setUp() public {
         vm.warp(1_000_000);
         permit2 = new MockPermit2();
@@ -49,6 +55,8 @@ contract StandingInvariantTest is Test {
             permit2.approve(address(token), address(std), type(uint160).max, type(uint48).max);
             vm.stopPrank();
         }
+
+        _warmStanding(keys);
 
         handler = new StandingHandler(std, token, owner, treasury, payers);
 
@@ -83,6 +91,40 @@ contract StandingInvariantTest is Test {
 
         targetSelector(FuzzSelector({addr: address(handler), selectors: selectors}));
         targetContract(address(handler));
+    }
+
+    /// Vests every payer and gives them a ceiling, using a mandate the
+    /// handler never sees so its counters stay clean.
+    function _warmStanding(uint256[] memory keys) internal {
+        for (uint256 i; i < payers.length; ++i) {
+            Mandate memory m = Mandate({
+                payer: payers[i],
+                merchant: merchantA,
+                token: address(token),
+                maxAmount: 30e6,
+                minInterval: 1,
+                startsAt: uint64(block.timestamp),
+                expiresAt: type(uint64).max,
+                maxCharges: 0,
+                chargeKind: ChargeKind.Prepaid,
+                salt: keccak256(abi.encode("warmup", payers[i]))
+            });
+            (uint8 v, bytes32 r, bytes32 sg) = vm.sign(keys[i], std.mandateDigest(m));
+            bytes32 id = std.createMandate(m, abi.encodePacked(r, sg, v));
+
+            for (uint256 c; c < 4; ++c) {
+                uint256 h = std.charge(id, 30e6);
+                vm.warp(block.timestamp + std.DEFAULT_WINDOW());
+                std.finalize(h);
+                warmupSettled += 30e6;
+                warmupHolds += 1;
+                vm.warp(block.timestamp + 1);
+            }
+
+            // Retired so the handler cannot bill it and skew its counters.
+            vm.prank(payers[i]);
+            std.revokeMandate(id);
+        }
     }
 
     function _seed(
@@ -137,7 +179,7 @@ contract StandingInvariantTest is Test {
     /// being accounted for.
     function invariant_noOrphanHoldIds() public view {
         uint256 next = std.nextHoldId();
-        assertEq(next, handler.holdsCreated() + 1, "id counter out of step");
+        assertEq(next, handler.holdsCreated() + warmupHolds + 1, "id counter out of step");
         for (uint256 id = 1; id < next; ++id) {
             assertTrue(std.getHold(id).status != HoldStatus.None, "orphan id");
         }
@@ -174,7 +216,7 @@ contract StandingInvariantTest is Test {
         for (uint256 i; i < payers.length; ++i) {
             credited += std.standingOf(payers[i]).cumulativeCleanSettled;
         }
-        assertEq(credited, handler.finalizedTotal(), "standing drifted from settlements");
+        assertEq(credited, handler.finalizedTotal() + warmupSettled, "standing drifted from settlements");
     }
 
     /// A settled hold's outcome must match what left the contract, so fees

@@ -18,6 +18,7 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook {
     /// shortening as a merchant earns trust, once the merchant registry lands.
     uint64 public constant DEFAULT_WINDOW = 3 days;
 
+    error NotVested(uint32 cleanSettlements, uint32 required);
     error AboveReversalCeiling(uint256 ceiling);
 
     event Charged(
@@ -77,14 +78,20 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook {
     /// a stranger's attempt still fails on `NotHoldPayer` inside
     /// `_reverseHold` rather than on a ceiling that is not theirs.
     ///
-    /// STILL INCOMPLETE. The value ceiling is enforced, but a first-ever
-    /// reversal from an address with no history is not yet refused, and an
-    /// abusive pattern does not yet suspend the right. Do not ship until both
-    /// land.
+    /// Vesting is checked before the ceiling, because holding no right at all
+    /// is a different answer from holding one that does not stretch this far.
+    ///
+    /// STILL INCOMPLETE. An abusive pattern does not yet suspend the right.
+    /// Do not ship until it does.
     function reverse(uint256 holdId) external {
         Hold storage h = _requireReversible(holdId);
+        address payer = h.payer;
 
-        uint256 ceiling = reversalCeiling(h.payer);
+        if (!isVested(payer)) {
+            revert NotVested(cleanSettlementsOf(payer), VESTING_CYCLES);
+        }
+
+        uint256 ceiling = reversalCeiling(payer);
         if (h.amount > ceiling) revert AboveReversalCeiling(ceiling);
 
         address merchant = _executeReversal(holdId);

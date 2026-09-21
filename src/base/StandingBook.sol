@@ -48,6 +48,15 @@ abstract contract StandingBook {
     /// the theft it enables.
     uint256 public constant CEILING_DIVISOR = 3;
 
+    /// Clean settlements a payer needs before holding any reversal right.
+    ///
+    /// The ceiling alone does not cover this. A single clean settlement large
+    /// enough leaves a ceiling big enough to reverse the next charge outright,
+    /// so one payment would buy an immediate right. The ceiling limits how
+    /// much can be reversed; this limits how soon, and elapsed cycles are the
+    /// one thing a fresh address cannot buy at any price.
+    uint32 public constant VESTING_CYCLES = 3;
+
     event StandingSettled(address indexed payer, uint256 amount, uint256 cumulativeCleanSettled);
     event StandingReversed(address indexed payer, address indexed merchant, uint32 distinctMerchants);
 
@@ -77,6 +86,21 @@ abstract contract StandingBook {
     function sampleSize(address payer) public view returns (uint8) {
         uint8 n = _standing[payer].recentCount;
         return n < RATE_WINDOW ? n : RATE_WINDOW;
+    }
+
+    function cleanSettlementsOf(address payer) public view returns (uint32) {
+        return _standing[payer].cleanSettlements;
+    }
+
+    /// Whether this payer holds any reversal right at all yet.
+    function isVested(address payer) public view returns (bool) {
+        return cleanSettlementsOf(payer) >= VESTING_CYCLES;
+    }
+
+    /// Clean settlements still needed before the right activates.
+    function cyclesUntilVested(address payer) external view returns (uint32) {
+        uint32 clean = _standing[payer].cleanSettlements;
+        return clean >= VESTING_CYCLES ? 0 : VESTING_CYCLES - clean;
     }
 
     /// The largest single hold this payer may reverse right now.
