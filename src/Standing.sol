@@ -3,10 +3,10 @@ pragma solidity 0.8.28;
 
 import {Escrow, Hold} from "./base/Escrow.sol";
 import {MandateRecord, MandateRegistry} from "./base/MandateRegistry.sol";
-import {MerchantRegistry} from "./base/MerchantRegistry.sol";
+import {AcceptanceBlock, AcceptancePolicy, MerchantRegistry} from "./base/MerchantRegistry.sol";
 import {Permit2Puller} from "./base/Permit2Puller.sol";
 import {StandingBook} from "./base/StandingBook.sol";
-import {ChargeKind} from "./types/Mandate.sol";
+import {ChargeKind, Mandate} from "./types/Mandate.sol";
 import {ReversalBlock} from "./types/Reversal.sol";
 
 /// Standing: recurring stablecoin payments with recourse.
@@ -16,6 +16,9 @@ import {ReversalBlock} from "./types/Reversal.sol";
 /// Earned reversal rights, which decide whether a payer may pull a hold back
 /// inside that window, land next.
 contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook, MerchantRegistry {
+    error PayerStandingTooLow(uint32 cleanSettlements, uint32 required);
+    error PayerTooManyReversals(uint8 inWindow, uint8 allowed);
+    error PayerSuspendedByPolicy();
     error NotVested(uint32 cleanSettlements, uint32 required);
     error ReversalSuspended(uint32 cleanCyclesOwed);
     error AboveReversalCeiling(uint256 ceiling);
@@ -33,6 +36,49 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook, Merch
     );
 
     constructor(address permit2, address initialOwner) Permit2Puller(permit2) Escrow(initialOwner) {}
+
+    /// Anyone may submit a signed mandate, subject to the merchant's own
+    /// acceptance policy.
+    ///
+    /// The policy is checked here and never again. A merchant that later
+    /// dislikes a payer simply stops calling `charge`, which it controls, so
+    /// re-checking on every charge would only add a way to strand a payer
+    /// mid-subscription without giving the merchant anything it lacks.
+    function createMandate(Mandate calldata m, bytes calldata signature) external returns (bytes32) {
+        AcceptanceBlock b = acceptanceBlocker(m.merchant, m.payer);
+
+        if (b == AcceptanceBlock.StandingTooLow) {
+            revert PayerStandingTooLow(
+                cleanSettlementsOf(m.payer), acceptancePolicyOf(m.merchant).minCleanSettlements
+            );
+        }
+        if (b == AcceptanceBlock.TooManyReversals) {
+            revert PayerTooManyReversals(
+                reversalsInWindow(m.payer), acceptancePolicyOf(m.merchant).maxReversalsInWindow
+            );
+        }
+        if (b == AcceptanceBlock.Suspended) revert PayerSuspendedByPolicy();
+
+        return _createMandate(m, signature);
+    }
+
+    /// Why this merchant's policy would refuse this payer. The same predicate
+    /// the guard above uses, so a merchant dashboard cannot show a payer as
+    /// acceptable when creation would refuse them.
+    function acceptanceBlocker(address merchant, address payer) public view returns (AcceptanceBlock) {
+        AcceptancePolicy memory p = acceptancePolicyOf(merchant);
+        if (!p.set) return AcceptanceBlock.None;
+
+        if (cleanSettlementsOf(payer) < p.minCleanSettlements) return AcceptanceBlock.StandingTooLow;
+        if (reversalsInWindow(payer) > p.maxReversalsInWindow) return AcceptanceBlock.TooManyReversals;
+        if (p.refuseSuspended && isSuspended(payer)) return AcceptanceBlock.Suspended;
+
+        return AcceptanceBlock.None;
+    }
+
+    function wouldAccept(address merchant, address payer) external view returns (bool) {
+        return acceptanceBlocker(merchant, payer) == AcceptanceBlock.None;
+    }
 
     /// Permissionless. The merchant normally calls it, which is the right
     /// incentive since the merchant wants the revenue and pays the gas.

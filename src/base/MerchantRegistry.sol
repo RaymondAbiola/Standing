@@ -1,6 +1,26 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.28;
 
+/// Why a merchant's policy refuses a payer.
+enum AcceptanceBlock {
+    None,
+    StandingTooLow,
+    TooManyReversals,
+    Suspended
+}
+
+/// What a merchant demands of a payer before accepting a mandate.
+///
+/// `set` exists because an unset struct is all zeros, and "requires zero clean
+/// settlements, allows zero reversals" would refuse every payer who has ever
+/// reversed anything. Absent policy has to mean open to everyone.
+struct AcceptancePolicy {
+    bool set;
+    bool refuseSuspended;
+    uint8 maxReversalsInWindow;
+    uint32 minCleanSettlements;
+}
+
 /// What a merchant has built up. The mirror of payer standing, read in the
 /// opposite direction: a payer earns the right to reverse, a merchant earns
 /// faster access to its own revenue.
@@ -44,12 +64,48 @@ abstract contract MerchantRegistry {
     /// Settlements before that rate is read as meaningful.
     uint32 public constant MERCHANT_MIN_SAMPLE = 20;
 
+    event AcceptancePolicySet(
+        address indexed merchant, uint32 minCleanSettlements, uint8 maxReversalsInWindow, bool refuseSuspended
+    );
+
     event MerchantSettled(address indexed merchant, uint32 settlements, uint64 window);
     event MerchantReversedAgainst(address indexed merchant, address indexed payer, uint32 reversals);
 
     mapping(address merchant => MerchantStanding standing) private _merchants;
 
     mapping(address merchant => mapping(address payer => bool seen)) private _reversedBy;
+
+    mapping(address merchant => AcceptancePolicy policy) private _policies;
+
+    /// A merchant sets its own terms, for itself only.
+    ///
+    /// This is the merchant's half of the protection. Standing cannot stop a
+    /// payer reversing repeatedly against one merchant, because the dispersion
+    /// rule that would catch it is the same rule protecting the customers of a
+    /// broken merchant. What a merchant can do is decline the mandate in the
+    /// first place, reading a history it can see before it agrees to serve.
+    function setAcceptancePolicy(uint32 minCleanSettlements, uint8 maxReversalsInWindow, bool refuseSuspended)
+        external
+    {
+        _policies[msg.sender] = AcceptancePolicy({
+            set: true,
+            refuseSuspended: refuseSuspended,
+            maxReversalsInWindow: maxReversalsInWindow,
+            minCleanSettlements: minCleanSettlements
+        });
+
+        emit AcceptancePolicySet(msg.sender, minCleanSettlements, maxReversalsInWindow, refuseSuspended);
+    }
+
+    /// Reverts to accepting everyone.
+    function clearAcceptancePolicy() external {
+        delete _policies[msg.sender];
+        emit AcceptancePolicySet(msg.sender, 0, 0, false);
+    }
+
+    function acceptancePolicyOf(address merchant) public view returns (AcceptancePolicy memory) {
+        return _policies[merchant];
+    }
 
     function merchantStandingOf(address merchant) external view returns (MerchantStanding memory) {
         return _merchants[merchant];

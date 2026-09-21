@@ -89,5 +89,15 @@ granted. Three conditions gate it:
 `reversalBlocker(holdId, caller)` reports which condition is in the way, and the guard reads the same
 predicate, so the frontend cannot offer a reversal the transaction would refuse.
 
+### What standing deliberately does not catch
+
+A payer who only ever reverses against one merchant never trips suspension, because the dispersion
+rule that would catch it is the same rule protecting the customers of a broken merchant. It cannot be
+one-sided.
+
+The merchant's remedy is to decline the next mandate. `setAcceptancePolicy` lets a merchant require a
+minimum number of clean settlements, cap recent reversals, and refuse suspended payers. Reversal
+history is public, so a merchant reads it before agreeing to serve rather than discovering it after.
+
 The deployed Arbitrum Sepolia address above predates escrow and pays merchants directly. It will be
 redeployed.

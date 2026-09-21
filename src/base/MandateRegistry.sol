@@ -72,10 +72,14 @@ abstract contract MandateRegistry is MandateSigning {
     mapping(bytes32 id => MandateRecord record) private _mandates;
     mapping(address payer => uint32 epoch) private _payerEpoch;
 
-    /// Permissionless: the payer's signature is the authorisation, so the
+    /// Internal, with the external entry point one layer up, so the merchant's
+    /// acceptance policy can be judged against the payer's standing before a
+    /// mandate is written.
+    ///
+    /// Permissionless there: the payer's signature is the authorisation, so the
     /// merchant can submit it and pay the gas, which is the right incentive
     /// since the merchant is the one who wants the revenue.
-    function createMandate(Mandate calldata m, bytes calldata signature) external returns (bytes32 id) {
+    function _createMandate(Mandate calldata m, bytes calldata signature) internal returns (bytes32 id) {
         if (m.payer == address(0) || m.merchant == address(0) || m.token == address(0)) {
             revert ZeroAddress();
         }
