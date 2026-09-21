@@ -38,7 +38,7 @@ contract SybilTest is Test {
         permit2 = new MockPermit2();
         std = new Standing(address(permit2), owner);
         token = new MockERC20(0);
-        window = std.DEFAULT_WINDOW();
+        window = std.MAX_MERCHANT_WINDOW();
     }
 
     /// A brand new funded address, which is all an attacker ever has.

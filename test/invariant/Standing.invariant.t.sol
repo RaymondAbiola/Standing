@@ -114,7 +114,7 @@ contract StandingInvariantTest is Test {
 
             for (uint256 c; c < 4; ++c) {
                 uint256 h = std.charge(id, 30e6);
-                vm.warp(block.timestamp + std.DEFAULT_WINDOW());
+                vm.warp(block.timestamp + std.MAX_MERCHANT_WINDOW());
                 std.finalize(h);
                 warmupSettled += 30e6;
                 warmupHolds += 1;

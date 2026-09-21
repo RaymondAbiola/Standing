@@ -70,6 +70,11 @@ Buildathon work in progress. Contracts are unaudited.
 A charge pulls through Permit2 and books the funds into escrow behind an unlock time. Anyone can
 call `finalize` once the window closes, which pays the merchant.
 
+**The window is priced, not fixed.** A merchant nobody has transacted with waits 5 days; one with a
+thousand clean settlements waits 2 hours. A merchant whose charges keep getting reversed stays at the
+maximum however much volume it has. A fixed hold is the most likely reason a merchant declines this
+outright, so it is something to be earned down rather than a flat cost.
+
 The payer can `reverse` a hold inside its window, and the right to do so is earned rather than
 granted. Three conditions gate it:
 

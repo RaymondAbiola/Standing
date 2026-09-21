@@ -28,6 +28,9 @@ contract StandingTest is Test {
     address internal payer;
 
     uint48 internal permitExpiry;
+    /// The longest any hold waits. Warping by this always clears a hold
+    /// whatever tier the merchant has reached, so tests that only need the
+    /// window closed anchor here rather than on a live value.
     uint64 internal window;
 
     function setUp() public {
@@ -36,7 +39,7 @@ contract StandingTest is Test {
         std = new Standing(address(permit2), owner);
         token = new MockERC20(0);
         (payer, payerKey) = makeAddrAndKey("payer");
-        window = std.DEFAULT_WINDOW();
+        window = std.MAX_MERCHANT_WINDOW();
 
         // Deliberately shorter than the mandate window, so a test can expire
         // the Permit2 allowance while the mandate itself is still live.
@@ -135,7 +138,7 @@ contract StandingTest is Test {
         assertEq(h.payer, payer);
         assertEq(h.merchant, merchant);
         assertEq(h.amount, 30e6);
-        assertEq(h.unlockAt, uint64(block.timestamp) + window);
+        assertEq(h.unlockAt, uint64(block.timestamp) + std.windowFor(merchant), "merchant's own tier");
         assertEq(uint8(h.status), uint8(HoldStatus.Held));
 
         assertEq(std.getMandate(id).chargeCount, 1);

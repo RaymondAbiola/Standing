@@ -3,6 +3,7 @@ pragma solidity 0.8.28;
 
 import {Escrow, Hold} from "./base/Escrow.sol";
 import {MandateRecord, MandateRegistry} from "./base/MandateRegistry.sol";
+import {MerchantRegistry} from "./base/MerchantRegistry.sol";
 import {Permit2Puller} from "./base/Permit2Puller.sol";
 import {StandingBook} from "./base/StandingBook.sol";
 import {ChargeKind} from "./types/Mandate.sol";
@@ -14,11 +15,7 @@ import {ReversalBlock} from "./types/Reversal.sol";
 /// escrow behind an unlock time. The merchant is paid when the window closes.
 /// Earned reversal rights, which decide whether a payer may pull a hold back
 /// inside that window, land next.
-contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook {
-    /// Placeholder policy. The window becomes a function of merchant history,
-    /// shortening as a merchant earns trust, once the merchant registry lands.
-    uint64 public constant DEFAULT_WINDOW = 3 days;
-
+contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook, MerchantRegistry {
     error NotVested(uint32 cleanSettlements, uint32 required);
     error ReversalSuspended(uint32 cleanCyclesOwed);
     error AboveReversalCeiling(uint256 ceiling);
@@ -52,7 +49,7 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook {
         address token = r.terms.token;
         address payer = r.terms.payer;
         address merchant = r.terms.merchant;
-        uint64 window = _windowFor(r.terms.chargeKind);
+        uint64 window = _windowFor(r.terms.chargeKind, merchant);
 
         _pullExact(token, payer, amount);
         holdId = _openHold(id, payer, merchant, token, amount, window);
@@ -71,8 +68,11 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook {
     /// what the payer has moved cleanly through the system, and the protocol
     /// fee is not the payer's business.
     function finalize(uint256 holdId) external {
+        address merchant = _peekHold(holdId).merchant;
         (address payer, uint256 amount) = _finalizeHold(holdId);
+
         _recordCleanSettlement(payer, amount);
+        _recordMerchantSettlement(merchant);
     }
 
     /// Returns a held charge to the payer before its window closes, and
@@ -121,6 +121,7 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook {
 
         address merchant = _executeReversal(holdId);
         _recordReversal(payer, merchant);
+        _recordMerchantReversal(merchant, payer);
 
         if (isAbusive(payer)) {
             emit ReversalSuspensionApplied(payer, _suspend(payer, SUSPENSION_CYCLES));
@@ -128,8 +129,9 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook {
     }
 
     /// Postpaid charges bill for consumption that already happened, so they
-    /// carry no reversal right and settle without a window.
-    function _windowFor(ChargeKind kind) internal pure returns (uint64) {
-        return kind == ChargeKind.Postpaid ? 0 : DEFAULT_WINDOW;
+    /// carry no reversal right and settle without a window. Everything else
+    /// waits as long as the merchant's own record says it should.
+    function _windowFor(ChargeKind kind, address merchant) internal view returns (uint64) {
+        return kind == ChargeKind.Postpaid ? 0 : windowFor(merchant);
     }
 }
