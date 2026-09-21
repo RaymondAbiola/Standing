@@ -49,6 +49,8 @@ abstract contract Permit2Puller {
         if (amount > type(uint160).max) revert AmountTooLarge();
 
         uint256 balanceBefore = IERC20(token).balanceOf(address(this));
+        // Safe: the bound above rejects anything a uint160 could not hold.
+        // forge-lint: disable-next-line(unsafe-typecast)
         PERMIT2.transferFrom(from, address(this), uint160(amount), token);
         uint256 received = IERC20(token).balanceOf(address(this)) - balanceBefore;
 
