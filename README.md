@@ -70,11 +70,19 @@ Buildathon work in progress. Contracts are unaudited.
 A charge pulls through Permit2 and books the funds into escrow behind an unlock time. Anyone can
 call `finalize` once the window closes, which pays the merchant.
 
-The payer can `reverse` a hold inside its window and get the funds back.
+The payer can `reverse` a hold inside its window, and the right to do so is earned rather than
+granted. Three conditions gate it:
 
-**Reversal is unconditional right now, which is not shippable.** A reversal right that costs nothing
-is a free option no merchant would accept. The right has to vest through clean payment history and
-be capped by the value that history represents. That gate lands with the standing book.
+- **Vesting.** Three clean settlements before the right exists at all. A fresh address holds none,
+  which is what stops a first reversal from being free.
+- **A value ceiling.** At most a third of what the payer has settled cleanly, so cheap history
+  cannot unlock an expensive reversal.
+- **Suspension.** A reversal rate above 20% over the last 10 outcomes, spread across three or more
+  distinct merchants, suspends the right until three more clean settlements restore it. Reversals
+  concentrated on one merchant never trip it, because that pattern is evidence about the merchant.
+
+`reversalBlocker(holdId, caller)` reports which condition is in the way, and the guard reads the same
+predicate, so the frontend cannot offer a reversal the transaction would refuse.
 
 The deployed Arbitrum Sepolia address above predates escrow and pays merchants directly. It will be
 redeployed.

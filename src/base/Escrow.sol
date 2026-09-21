@@ -5,6 +5,8 @@ import {Ownable, Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
+import {ReversalBlock} from "../types/Reversal.sol";
+
 enum HoldStatus {
     None,
     Held,
@@ -192,19 +194,34 @@ abstract contract Escrow is Ownable2Step {
     /// window, so they are already past `unlockAt` when the hold is booked and
     /// the window check refuses them.
     ///
-    /// UNCONDITIONAL FOR NOW. A vested, value-capped reversal right is what
-    /// stops this from being a free option the payer can exercise every cycle,
-    /// and it is checked here once the standing book lands. Do not ship
-    /// without it.
+    /// Carries no standing conditions of its own. Whether this payer holds a
+    /// reversal right at all, whether it is suspended, and whether it stretches
+    /// to this amount are judged by the module that owns both the standing and
+    /// the escrow, and checked before this runs.
+    /// The conditions the vault alone can judge. Non-reverting, so the same
+    /// logic serves both the guard below and a caller's read-only probe.
+    function _escrowReversalBlock(uint256 holdId, address caller) internal view returns (ReversalBlock) {
+        Hold storage h = _holds[holdId];
+        if (h.status != HoldStatus.Held) return ReversalBlock.HoldNotOpen;
+        if (caller != h.payer) return ReversalBlock.NotPayer;
+        if (block.timestamp >= h.unlockAt) return ReversalBlock.WindowClosed;
+        return ReversalBlock.None;
+    }
+
     /// Split from the execution so a caller can insert its own conditions
     /// after these and before the money moves. Order matters: a hold that is
     /// settled, not yours, or out of window can never be reversed whatever
     /// your standing, so those reasons have to be reported first.
     function _requireReversible(uint256 holdId) internal view returns (Hold storage h) {
         h = _hold(holdId);
-        if (h.status != HoldStatus.Held) revert HoldNotOpen();
-        if (msg.sender != h.payer) revert NotHoldPayer();
-        if (block.timestamp >= h.unlockAt) revert WindowClosed(h.unlockAt);
+        _revertForEscrowBlock(_escrowReversalBlock(holdId, msg.sender), h.unlockAt);
+    }
+
+    function _revertForEscrowBlock(ReversalBlock b, uint64 unlockAt) internal pure {
+        if (b == ReversalBlock.None) return;
+        if (b == ReversalBlock.HoldNotOpen) revert HoldNotOpen();
+        if (b == ReversalBlock.NotPayer) revert NotHoldPayer();
+        if (b == ReversalBlock.WindowClosed) revert WindowClosed(unlockAt);
     }
 
     function _executeReversal(uint256 holdId) internal returns (address merchant) {
@@ -255,6 +272,12 @@ abstract contract Escrow is Ownable2Step {
         _totalHeld[token] += amount;
 
         emit HoldOpened(holdId, mandateId, merchant, payer, token, amount, unlockAt);
+    }
+
+    /// Non-reverting read, for callers that have already established the
+    /// hold exists via `_escrowReversalBlock`.
+    function _peekHold(uint256 holdId) internal view returns (Hold storage) {
+        return _holds[holdId];
     }
 
     function _hold(uint256 holdId) internal view returns (Hold storage h) {

@@ -158,11 +158,9 @@ contract StandingHandler is CommonBase, StdCheats, StdUtils {
             uint256 holdId = _holds[(start + k) % n];
             Hold memory h = STANDING.getHold(holdId);
             if (h.status != HoldStatus.Held || block.timestamp >= h.unlockAt) continue;
-            // Both gates now stand between a held hold and a reversal, so
-            // scanning without them spends the call on a hold this payer
-            // cannot touch.
-            if (!STANDING.isVested(h.payer)) continue;
-            if (h.amount > STANDING.reversalCeiling(h.payer)) continue;
+            // Ask the contract's own probe rather than re-deriving the
+            // conditions here, so this cannot drift from the guard.
+            if (!STANDING.canReverse(holdId, h.payer)) continue;
 
             vm.prank(h.payer);
             try STANDING.reverse(holdId) {

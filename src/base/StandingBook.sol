@@ -57,6 +57,29 @@ abstract contract StandingBook {
     /// one thing a fresh address cannot buy at any price.
     uint32 public constant VESTING_CYCLES = 3;
 
+    /// Reversal rate, as a percentage of the window, above which a pattern
+    /// counts as abusive. A reversal is not evidence of abuse on its own, so
+    /// the trigger is a rate rather than a count.
+    uint8 public constant ABUSE_RATE_PERCENT = 20;
+
+    /// Outcomes needed before a rate means anything. Two reversals out of
+    /// three is a 67 percent rate and tells you nothing.
+    uint8 public constant MIN_SAMPLE = 5;
+
+    /// Distinct merchants a payer must have reversed against before a high
+    /// rate is read as their behaviour.
+    ///
+    /// This is what keeps the trigger from punishing the customer of a broken
+    /// merchant. Reversals concentrated on one counterparty are evidence about
+    /// that counterparty; the same rate spread across unrelated merchants is
+    /// evidence about the payer. Dispersion is lifetime rather than windowed,
+    /// because having reversed against several unrelated merchants at any
+    /// point is what makes a recent spike look like a habit.
+    uint32 public constant DISPERSION_THRESHOLD = 3;
+
+    /// Clean settlements needed to lift a suspension.
+    uint32 public constant SUSPENSION_CYCLES = 3;
+
     event StandingSettled(address indexed payer, uint256 amount, uint256 cumulativeCleanSettled);
     event StandingReversed(address indexed payer, address indexed merchant, uint32 distinctMerchants);
 
@@ -86,6 +109,27 @@ abstract contract StandingBook {
     function sampleSize(address payer) public view returns (uint8) {
         uint8 n = _standing[payer].recentCount;
         return n < RATE_WINDOW ? n : RATE_WINDOW;
+    }
+
+    /// Whether this payer's recent pattern trips the abuse trigger. All three
+    /// conditions must hold: enough sample, a rate above the threshold, and
+    /// reversals spread across enough merchants.
+    function isAbusive(address payer) public view returns (bool) {
+        uint8 n = sampleSize(payer);
+        if (n < MIN_SAMPLE) return false;
+        if (_standing[payer].distinctMerchantsReversed < DISPERSION_THRESHOLD) return false;
+
+        return uint256(reversalsInWindow(payer)) * 100 > uint256(n) * ABUSE_RATE_PERCENT;
+    }
+
+    function isSuspended(address payer) public view returns (bool) {
+        return _isSuspended(payer);
+    }
+
+    /// Clean settlements still owed before the right comes back.
+    function cyclesUntilRestored(address payer) public view returns (uint32) {
+        PayerStanding storage s = _standing[payer];
+        return s.cleanSettlements >= s.restoreAtClean ? 0 : s.restoreAtClean - s.cleanSettlements;
     }
 
     function cleanSettlementsOf(address payer) public view returns (uint32) {
@@ -138,9 +182,10 @@ abstract contract StandingBook {
     /// Suspension is served in clean settlements, not in seconds. A payer who
     /// abused the right earns it back by paying cleanly, and cannot simply
     /// wait out a timer while doing nothing.
-    function _suspend(address payer, uint32 cleanCyclesRequired) internal {
+    function _suspend(address payer, uint32 cleanCyclesRequired) internal returns (uint32 restoreAt) {
         PayerStanding storage s = _standing[payer];
-        s.restoreAtClean = s.cleanSettlements + cleanCyclesRequired;
+        restoreAt = s.cleanSettlements + cleanCyclesRequired;
+        s.restoreAtClean = restoreAt;
     }
 
     function _isSuspended(address payer) internal view returns (bool) {

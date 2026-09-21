@@ -8,6 +8,7 @@ import {Escrow, Hold, HoldStatus} from "../src/base/Escrow.sol";
 import {MandateRegistry} from "../src/base/MandateRegistry.sol";
 import {Permit2Puller} from "../src/base/Permit2Puller.sol";
 import {ChargeKind, Mandate} from "../src/types/Mandate.sol";
+import {ReversalBlock} from "../src/types/Reversal.sol";
 import {UnsafeOrderingHarness} from "./harness/UnsafeOrderingHarness.sol";
 import {MockERC1271Signer} from "./mocks/MockERC1271Signer.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";
@@ -21,6 +22,8 @@ contract StandingTest is Test {
 
     address internal owner = makeAddr("owner");
     address internal merchant = makeAddr("merchant");
+    address internal merchantB = makeAddr("merchantB");
+    address internal merchantC = makeAddr("merchantC");
     uint256 internal payerKey;
     address internal payer;
 
@@ -54,9 +57,17 @@ contract StandingTest is Test {
         view
         returns (Mandate memory)
     {
+        return _termsFor(p, merchant, tok, kind, salt);
+    }
+
+    function _termsFor(address p, address mrc, address tok, ChargeKind kind, bytes32 salt)
+        internal
+        view
+        returns (Mandate memory)
+    {
         return Mandate({
             payer: p,
-            merchant: merchant,
+            merchant: mrc,
             token: tok,
             maxAmount: 30e6,
             minInterval: 30 days,
@@ -424,6 +435,174 @@ contract StandingTest is Test {
         std.reverse(h);
 
         assertEq(std.reversalCeiling(payer), ceilingBefore, "unchanged");
+    }
+
+    // --- abuse trigger and suspension ---
+
+    /// Reversals piled on one merchant never trip the trigger. That pattern is
+    /// evidence about the merchant, not the payer, so punishing the payer
+    /// would penalise the customer of a broken integration.
+    function test_concentratedReversalsNeverSuspend() public {
+        bytes32 id = _mandate();
+        _settleCycles(id, 30e6, 3);
+
+        for (uint256 i; i < 5; ++i) {
+            uint256 h = std.charge(id, 30e6);
+            vm.prank(payer);
+            std.reverse(h);
+            vm.warp(block.timestamp + 30 days);
+        }
+
+        assertEq(std.standingOf(payer).reversals, 5);
+        assertEq(std.standingOf(payer).distinctMerchantsReversed, 1);
+        assertFalse(std.isAbusive(payer), "one counterparty is not a pattern");
+        assertFalse(std.isSuspended(payer));
+    }
+
+    /// The same rate spread across unrelated merchants is the payer's habit,
+    /// and it suspends the right.
+    function test_dispersedReversalsSuspend() public {
+        bytes32 a = _mandate();
+        Mandate memory mb =
+            _termsFor(payer, merchantB, address(token), ChargeKind.Prepaid, bytes32(uint256(31)));
+        mb.minInterval = 1;
+        Mandate memory mc =
+            _termsFor(payer, merchantC, address(token), ChargeKind.Prepaid, bytes32(uint256(32)));
+        mc.minInterval = 1;
+        bytes32 b = _create(mb);
+        bytes32 c = _create(mc);
+
+        _settleCycles(a, 30e6, 3);
+        assertTrue(std.isVested(payer));
+
+        _reverseOne(a);
+        assertFalse(std.isAbusive(payer), "sample too small");
+
+        _reverseOne(b);
+        assertFalse(std.isAbusive(payer), "only two merchants");
+
+        _reverseOne(c);
+        assertTrue(std.isAbusive(payer), "three merchants, rate above threshold");
+        assertTrue(std.isSuspended(payer));
+        assertEq(std.cyclesUntilRestored(payer), 3);
+    }
+
+    function _reverseOne(bytes32 id) internal {
+        uint256 h = std.charge(id, 30e6);
+        vm.prank(payer);
+        std.reverse(h);
+        vm.warp(block.timestamp + 30 days);
+    }
+
+    function test_suspensionBlocksFurtherReversals() public {
+        _suspendPayer();
+
+        bytes32 id = _mandate();
+        uint256 h = std.charge(id, 30e6);
+        assertEq(uint8(std.reversalBlocker(h, payer)), uint8(ReversalBlock.Suspended));
+
+        vm.prank(payer);
+        vm.expectRevert(abi.encodeWithSelector(Standing.ReversalSuspended.selector, uint32(3)));
+        std.reverse(h);
+    }
+
+    /// Served in clean settlements, so waiting is not a way out.
+    function test_suspensionCannotBeWaitedOut() public {
+        _suspendPayer();
+
+        vm.warp(block.timestamp + 3650 days);
+        assertTrue(std.isSuspended(payer), "time alone changes nothing");
+    }
+
+    function test_suspensionLiftsAfterThreeCleanCycles() public {
+        _suspendPayer();
+        bytes32 id = _mandate();
+
+        _settleCycles(id, 30e6, 2);
+        assertTrue(std.isSuspended(payer));
+        assertEq(std.cyclesUntilRestored(payer), 1);
+
+        _settleCycles(id, 30e6, 1);
+        assertFalse(std.isSuspended(payer), "earned back by paying cleanly");
+        assertEq(std.cyclesUntilRestored(payer), 0);
+
+        uint256 h = std.charge(id, 30e6);
+        vm.prank(payer);
+        std.reverse(h);
+        assertEq(uint8(std.getHold(h).status), uint8(HoldStatus.Reversed));
+    }
+
+    /// Drives a payer into suspension through three dispersed reversals.
+    function _suspendPayer() internal {
+        bytes32 a = _mandate();
+        Mandate memory mb =
+            _termsFor(payer, merchantB, address(token), ChargeKind.Prepaid, bytes32(uint256(41)));
+        mb.minInterval = 1;
+        Mandate memory mc =
+            _termsFor(payer, merchantC, address(token), ChargeKind.Prepaid, bytes32(uint256(42)));
+        mc.minInterval = 1;
+        bytes32 b = _create(mb);
+        bytes32 c = _create(mc);
+
+        _settleCycles(a, 30e6, 3);
+        _reverseOne(a);
+        _reverseOne(b);
+        _reverseOne(c);
+        assertTrue(std.isSuspended(payer), "setup should have suspended");
+    }
+
+    // --- reversal probe ---
+
+    function test_blockerReportsEachReasonInOrder() public {
+        bytes32 id = _mandate();
+        uint256 h = std.charge(id, 30e6);
+
+        assertEq(uint8(std.reversalBlocker(h, merchant)), uint8(ReversalBlock.NotPayer));
+        assertEq(uint8(std.reversalBlocker(h, payer)), uint8(ReversalBlock.NotVested));
+        assertEq(uint8(std.reversalBlocker(999, payer)), uint8(ReversalBlock.HoldNotOpen));
+
+        vm.warp(block.timestamp + window);
+        assertEq(uint8(std.reversalBlocker(h, payer)), uint8(ReversalBlock.WindowClosed));
+        std.finalize(h);
+        assertEq(uint8(std.reversalBlocker(h, payer)), uint8(ReversalBlock.HoldNotOpen));
+    }
+
+    function test_blockerReportsAboveCeiling() public {
+        bytes32 id = _mandate();
+        _settleCycles(id, 10e6, 3);
+
+        uint256 h = std.charge(id, 30e6);
+        assertEq(uint8(std.reversalBlocker(h, payer)), uint8(ReversalBlock.AboveCeiling));
+        assertFalse(std.canReverse(h, payer));
+    }
+
+    function test_blockerReportsNoneWhenAllowed() public {
+        bytes32 id = _mandate();
+        _buildStanding(id, 30e6);
+
+        uint256 h = std.charge(id, 30e6);
+        assertEq(uint8(std.reversalBlocker(h, payer)), uint8(ReversalBlock.None));
+        assertTrue(std.canReverse(h, payer));
+    }
+
+    /// The probe and the guard must never disagree, or the frontend will offer
+    /// a reversal the transaction refuses.
+    function testFuzz_probeAgreesWithGuard(uint256 amountSeed, uint64 skip, bool warmed) public {
+        bytes32 id = _mandate();
+        if (warmed) _settleCycles(id, 30e6, 3);
+
+        uint256 amount = bound(amountSeed, 1, 30e6);
+        uint256 h = std.charge(id, amount);
+        vm.warp(block.timestamp + bound(skip, 0, 10 days));
+
+        bool allowed = std.canReverse(h, payer);
+        vm.prank(payer);
+        if (allowed) {
+            std.reverse(h);
+        } else {
+            vm.expectRevert();
+            std.reverse(h);
+        }
     }
 
     // --- revert branches ---

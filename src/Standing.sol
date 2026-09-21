@@ -6,6 +6,7 @@ import {MandateRecord, MandateRegistry} from "./base/MandateRegistry.sol";
 import {Permit2Puller} from "./base/Permit2Puller.sol";
 import {StandingBook} from "./base/StandingBook.sol";
 import {ChargeKind} from "./types/Mandate.sol";
+import {ReversalBlock} from "./types/Reversal.sol";
 
 /// Standing: recurring stablecoin payments with recourse.
 ///
@@ -19,7 +20,10 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook {
     uint64 public constant DEFAULT_WINDOW = 3 days;
 
     error NotVested(uint32 cleanSettlements, uint32 required);
+    error ReversalSuspended(uint32 cleanCyclesOwed);
     error AboveReversalCeiling(uint256 ceiling);
+
+    event ReversalSuspensionApplied(address indexed payer, uint32 restoreAtClean);
 
     event Charged(
         bytes32 indexed id,
@@ -78,24 +82,49 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook {
     /// a stranger's attempt still fails on `NotHoldPayer` inside
     /// `_reverseHold` rather than on a ceiling that is not theirs.
     ///
-    /// Vesting is checked before the ceiling, because holding no right at all
-    /// is a different answer from holding one that does not stretch this far.
+    /// Every condition standing between a hold and a reversal, in the order a
+    /// payer most needs to hear them. Non-reverting, and the same predicate
+    /// the guard below uses, so the frontend can never show a reversal as
+    /// available when the transaction would refuse it.
+    function reversalBlocker(uint256 holdId, address caller) public view returns (ReversalBlock) {
+        ReversalBlock escrowBlock = _escrowReversalBlock(holdId, caller);
+        if (escrowBlock != ReversalBlock.None) return escrowBlock;
+
+        Hold storage h = _peekHold(holdId);
+
+        if (!isVested(h.payer)) return ReversalBlock.NotVested;
+        if (isSuspended(h.payer)) return ReversalBlock.Suspended;
+        if (h.amount > reversalCeiling(h.payer)) return ReversalBlock.AboveCeiling;
+
+        return ReversalBlock.None;
+    }
+
+    function canReverse(uint256 holdId, address caller) external view returns (bool) {
+        return reversalBlocker(holdId, caller) == ReversalBlock.None;
+    }
+
+    /// Returns a held charge to the payer before its window closes, records
+    /// the reversal, and suspends the right if the pattern has become abusive.
     ///
-    /// STILL INCOMPLETE. An abusive pattern does not yet suspend the right.
-    /// Do not ship until it does.
+    /// The suspension is evaluated after recording, because whether this
+    /// reversal tipped the payer over is exactly what the trigger asks.
     function reverse(uint256 holdId) external {
         Hold storage h = _requireReversible(holdId);
         address payer = h.payer;
 
-        if (!isVested(payer)) {
+        ReversalBlock b = reversalBlocker(holdId, msg.sender);
+        if (b == ReversalBlock.NotVested) {
             revert NotVested(cleanSettlementsOf(payer), VESTING_CYCLES);
         }
-
-        uint256 ceiling = reversalCeiling(payer);
-        if (h.amount > ceiling) revert AboveReversalCeiling(ceiling);
+        if (b == ReversalBlock.Suspended) revert ReversalSuspended(cyclesUntilRestored(payer));
+        if (b == ReversalBlock.AboveCeiling) revert AboveReversalCeiling(reversalCeiling(payer));
 
         address merchant = _executeReversal(holdId);
-        _recordReversal(msg.sender, merchant);
+        _recordReversal(payer, merchant);
+
+        if (isAbusive(payer)) {
+            emit ReversalSuspensionApplied(payer, _suspend(payer, SUSPENSION_CYCLES));
+        }
     }
 
     /// Postpaid charges bill for consumption that already happened, so they
