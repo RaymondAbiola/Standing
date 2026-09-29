@@ -43,7 +43,7 @@ Copy `.env.example` to `.env` and fill it before running anything against a netw
 
 | Network | Chain ID | Role | Standing |
 |---|---|---|---|
-| Arbitrum Sepolia | 421614 | Primary. Demo deployment judges can click through | [`0x3d30b84664e33ce51015a6b310544f45d63aa5d3`](https://sepolia.arbiscan.io/address/0x3d30b84664e33ce51015a6b310544f45d63aa5d3) |
+| Arbitrum Sepolia | 421614 | Primary. Demo deployment judges can click through | [`0xfa820CB11e871eB05334d0f9567F7804c68CdB98`](https://sepolia.arbiscan.io/address/0xfa820CB11e871eB05334d0f9567F7804c68CdB98) |
 | Robinhood Chain | 4663 | Mainnet, under a hard exposure cap | not yet deployed |
 | Robinhood Chain testnet | 46630 | Integration testing | not yet deployed |
 
@@ -99,5 +99,6 @@ The merchant's remedy is to decline the next mandate. `setAcceptancePolicy` lets
 minimum number of clean settlements, cap recent reversals, and refuse suspended payers. Reversal
 history is public, so a merchant reads it before agreeing to serve rather than discovering it after.
 
-The deployed Arbitrum Sepolia address above predates escrow and pays merchants directly. It will be
-redeployed.
+A faucet token for the testnet demo is deployed alongside at
+[`0xa46c8271C5344a21932ebea331DD8086189986DF`](https://sepolia.arbiscan.io/address/0xa46c8271C5344a21932ebea331DD8086189986DF).
+Anyone can mint it; it exists only so the demo has something to charge in.
