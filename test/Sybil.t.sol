@@ -5,7 +5,6 @@ import {Test} from "forge-std/Test.sol";
 import {console} from "forge-std/console.sol";
 
 import {Standing} from "../src/Standing.sol";
-import {HoldStatus} from "../src/base/Escrow.sol";
 import {ChargeKind, Mandate} from "../src/types/Mandate.sol";
 import {ReversalBlock} from "../src/types/Reversal.sol";
 import {MockERC20} from "./mocks/MockERC20.sol";

@@ -306,7 +306,7 @@ contract StandingBookTest is Test {
         assertEq(book.cyclesUntilRestored(payer), 3, "reset, not shortened");
     }
 
-    function test_neverSuspendedReportsZeroOwed() public {
+    function test_neverSuspendedReportsZeroOwed() public view {
         assertFalse(book.isSuspended(payer));
         assertEq(book.cyclesUntilRestored(payer), 0);
     }
