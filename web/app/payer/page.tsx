@@ -1,10 +1,11 @@
 "use client";
 
-import {useAccount, useWaitForTransactionReceipt, useWriteContract} from "wagmi";
+import {useAccount} from "wagmi";
 
 import {Button, Chip, Empty, Section, Stat} from "@/components/ui";
 import {HOLD_STATUS, REVERSAL_BLOCK, formatAmount, formatDuration, shortAddress} from "@/lib/format";
 import {useHolds, useMandates, useStanding, useStandingContract} from "@/lib/hooks";
+import {useTx} from "@/lib/useTx";
 import {useDeployment} from "@/lib/deployments";
 import {Authorise} from "@/components/Authorise";
 import {NotConnected, WrongChain} from "@/components/States";
@@ -18,9 +19,7 @@ export default function PayerPage() {
   const mandates = useMandates("payer", address);
   const holds = useHolds("payer", address);
 
-  const {writeContract, data: hash, isPending} = useWriteContract();
-  const {isLoading: confirming} = useWaitForTransactionReceipt({hash});
-  const busy = isPending || confirming;
+  const {writeContract, busy} = useTx();
 
   const open = (holds.data ?? []).filter((h) => h.status === 1);
 

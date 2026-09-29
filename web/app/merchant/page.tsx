@@ -1,7 +1,7 @@
 "use client";
 
 import {useState} from "react";
-import {useAccount, useReadContracts, useWaitForTransactionReceipt, useWriteContract} from "wagmi";
+import {useAccount, useReadContracts} from "wagmi";
 
 import {NotConnected, WrongChain} from "@/components/States";
 import {Button, Chip, Empty, Field, Input, Section, Stat} from "@/components/ui";
@@ -14,6 +14,7 @@ import {
   shortAddress,
 } from "@/lib/format";
 import {useHolds, useMandates, useMerchantStanding, useStandingContract} from "@/lib/hooks";
+import {useTx} from "@/lib/useTx";
 import {useDeployment} from "@/lib/deployments";
 
 export default function MerchantPage() {
@@ -24,9 +25,7 @@ export default function MerchantPage() {
   const mandates = useMandates("merchant", address);
   const holds = useHolds("merchant", address);
 
-  const {writeContract, data: hash, isPending} = useWriteContract();
-  const {isLoading: confirming} = useWaitForTransactionReceipt({hash});
-  const busy = isPending || confirming;
+  const {writeContract, busy} = useTx();
 
   const [amounts, setAmounts] = useState<Record<string, string>>({});
   const [minClean, setMinClean] = useState("0");

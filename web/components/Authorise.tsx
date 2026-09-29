@@ -1,14 +1,7 @@
 "use client";
 
-import {useMemo, useState} from "react";
-import {
-  useAccount,
-  useChainId,
-  useReadContract,
-  useSignTypedData,
-  useWaitForTransactionReceipt,
-  useWriteContract,
-} from "wagmi";
+import {useEffect, useMemo, useState} from "react";
+import {useAccount, useChainId, useReadContract, useSignTypedData} from "wagmi";
 
 import {
   MANDATE_TYPES,
@@ -21,6 +14,7 @@ import {
 import {useDeployment} from "@/lib/deployments";
 import {formatAmount, parseAmount} from "@/lib/format";
 import {useStandingContract} from "@/lib/hooks";
+import {useTx} from "@/lib/useTx";
 import {Button, Chip, Field, Input, Section} from "./ui";
 
 const MAX_UINT256 = (1n << 256n) - 1n;
@@ -50,10 +44,9 @@ export function Authorise({onDone}: {onDone?: () => void}) {
   const [intervalDays, setIntervalDays] = useState("30");
   const [signed, setSigned] = useState<{mandate: MandateStruct; signature: `0x${string}`} | null>(null);
 
-  const {writeContract, data: hash, isPending, error: writeError} = useWriteContract();
-  const {isLoading: confirming} = useWaitForTransactionReceipt({hash});
+  const {writeContract, busy: txBusy, error: writeError} = useTx();
   const {signTypedDataAsync, isPending: signing} = useSignTypedData();
-  const busy = isPending || confirming || signing;
+  const busy = txBusy || signing;
 
   const balance = useReadContract({
     address: DEMO_TOKEN_ADDRESS,
@@ -104,6 +97,13 @@ export function Authorise({onDone}: {onDone?: () => void}) {
       salt: randomSalt(),
     };
   }, [address, merchant, merchantValid, cap, intervalDays]);
+
+  // A signature commits to exact terms, so editing the form after signing has
+  // to discard it. Otherwise the button would create a mandate on values the
+  // form is no longer showing.
+  useEffect(() => {
+    setSigned(null);
+  }, [merchant, cap, intervalDays]);
 
   if (!supported) return null;
 

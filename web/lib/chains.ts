@@ -1,6 +1,9 @@
 import {defineChain} from "viem";
 import {arbitrumSepolia} from "viem/chains";
 
+/// Same canonical deployment on both Robinhood chains, confirmed onchain.
+const MULTICALL3 = "0xcA11bde05977b3631167028862bE2a173976CA11" as const;
+
 /// Robinhood Chain is not in viem's registry, so it is defined here from the
 /// values in the repo README: chain 4663 mainnet, 46630 testnet.
 export const robinhood = defineChain({
@@ -17,6 +20,9 @@ export const robinhood = defineChain({
   blockExplorers: {
     default: {name: "Blockscout", url: "https://robinhoodchain.blockscout.com"},
   },
+  // Verified deployed at the canonical address. Without this viem refuses to
+  // batch, and reading the hold list falls over.
+  contracts: {multicall3: {address: MULTICALL3}},
 });
 
 export const robinhoodTestnet = defineChain({
@@ -27,6 +33,7 @@ export const robinhoodTestnet = defineChain({
   blockExplorers: {
     default: {name: "Blockscout", url: "https://explorer.testnet.chain.robinhood.com"},
   },
+  contracts: {multicall3: {address: MULTICALL3}},
 });
 
 export {arbitrumSepolia};
