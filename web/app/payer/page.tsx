@@ -6,6 +6,7 @@ import {Button, Chip, Empty, Section, Stat} from "@/components/ui";
 import {HOLD_STATUS, REVERSAL_BLOCK, formatAmount, formatDuration, shortAddress} from "@/lib/format";
 import {standingContract, useHolds, useMandates, useStanding} from "@/lib/hooks";
 import {isConfigured} from "@/lib/wagmi";
+import {Authorise} from "@/components/Authorise";
 import {NotConfigured, NotConnected} from "@/components/States";
 import {useReadContracts} from "wagmi";
 
@@ -157,6 +158,8 @@ export default function PayerPage() {
           </div>
         )}
       </Section>
+
+      <Authorise />
 
       <Section eyebrow="HISTORY" title="Settled and reversed">
         {(holds.data ?? []).filter((h) => h.status > 1).length === 0 ? (
