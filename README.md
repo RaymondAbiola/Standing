@@ -41,14 +41,23 @@ Copy `.env.example` to `.env` and fill it before running anything against a netw
 
 ## Networks
 
-| Network | Chain ID | Role | Standing |
+| Network | Chain ID | Standing | Faucet token |
 |---|---|---|---|
-| Arbitrum Sepolia | 421614 | Primary. Demo deployment judges can click through | [`0xfa820CB11e871eB05334d0f9567F7804c68CdB98`](https://sepolia.arbiscan.io/address/0xfa820CB11e871eB05334d0f9567F7804c68CdB98) |
-| Robinhood Chain | 4663 | Mainnet, under a hard exposure cap | not yet deployed |
-| Robinhood Chain testnet | 46630 | Integration testing | not yet deployed |
+| Arbitrum Sepolia | 421614 | [`0xfa820CB1…dB98`](https://sepolia.arbiscan.io/address/0xfa820CB11e871eB05334d0f9567F7804c68CdB98) | [`0xa46c8271…86DF`](https://sepolia.arbiscan.io/address/0xa46c8271C5344a21932ebea331DD8086189986DF) |
+| Robinhood Chain Testnet | 46630 | [`0x3D30B846…a5D3`](https://explorer.testnet.chain.robinhood.com/address/0x3D30B84664E33CE51015a6B310544F45d63aA5D3) | [`0xfa820CB1…dB98`](https://explorer.testnet.chain.robinhood.com/address/0xfa820CB11e871eB05334d0f9567F7804c68CdB98) |
 
-Permit2 sits at `0x000000000022D473030F116dDEE9F6B43aC78BA3` on all three, with
+Both are verified. Permit2 sits at `0x000000000022D473030F116dDEE9F6B43aC78BA3` on both, with
 identical bytecode.
+
+**Read that table carefully: the same address means different things on different chains.** Standing
+on Arbitrum Sepolia and the faucet token on Robinhood testnet share an address, because CREATE
+derives from the deployer and its nonce and the same deployer was used on both chains with
+independent nonce sequences. Anything holding a single address for "the Standing contract" will read
+one as the other. The frontend keys addresses by chain id in `web/lib/deployments.ts` for exactly
+this reason.
+
+The faucet token is testnet scaffolding with an open mint, so the demo has something to charge in. It
+is deployed from `script/` and nothing in `src/` imports it.
 
 The Robinhood Chain public RPC is rate limited and not meant for production load.
 
@@ -99,6 +108,5 @@ The merchant's remedy is to decline the next mandate. `setAcceptancePolicy` lets
 minimum number of clean settlements, cap recent reversals, and refuse suspended payers. Reversal
 history is public, so a merchant reads it before agreeing to serve rather than discovering it after.
 
-A faucet token for the testnet demo is deployed alongside at
-[`0xa46c8271C5344a21932ebea331DD8086189986DF`](https://sepolia.arbiscan.io/address/0xa46c8271C5344a21932ebea331DD8086189986DF).
-Anyone can mint it; it exists only so the demo has something to charge in.
+The web app in `web/` is the demo surface: a home page explaining the mechanism, a payer portal, and
+a merchant dashboard. Run it with `cd web && bun install && bun run dev`.
