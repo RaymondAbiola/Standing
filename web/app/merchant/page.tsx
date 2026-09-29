@@ -3,7 +3,7 @@
 import {useState} from "react";
 import {useAccount, useReadContracts, useWaitForTransactionReceipt, useWriteContract} from "wagmi";
 
-import {NotConfigured, NotConnected} from "@/components/States";
+import {NotConnected, WrongChain} from "@/components/States";
 import {Button, Chip, Empty, Field, Input, Section, Stat} from "@/components/ui";
 import {
   CHARGE_BLOCK,
@@ -13,11 +13,13 @@ import {
   parseAmount,
   shortAddress,
 } from "@/lib/format";
-import {standingContract, useHolds, useMandates, useMerchantStanding} from "@/lib/hooks";
-import {isConfigured} from "@/lib/wagmi";
+import {useHolds, useMandates, useMerchantStanding, useStandingContract} from "@/lib/hooks";
+import {useDeployment} from "@/lib/deployments";
 
 export default function MerchantPage() {
   const {address, isConnected} = useAccount();
+  const {chainId, supported} = useDeployment();
+  const standingContract = useStandingContract();
   const standing = useMerchantStanding(address);
   const mandates = useMandates("merchant", address);
   const holds = useHolds("merchant", address);
@@ -45,8 +47,8 @@ export default function MerchantPage() {
   const settled = (holds.data ?? []).filter((h) => h.status === 2);
   const revenue = settled.reduce((acc, h) => acc + h.amount, 0n);
 
-  if (!isConfigured) return <NotConfigured />;
   if (!isConnected) return <NotConnected role="merchant" />;
+  if (!supported) return <WrongChain chainId={chainId} />;
 
   return (
     <>

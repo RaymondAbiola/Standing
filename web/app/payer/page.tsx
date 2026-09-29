@@ -4,14 +4,16 @@ import {useAccount, useWaitForTransactionReceipt, useWriteContract} from "wagmi"
 
 import {Button, Chip, Empty, Section, Stat} from "@/components/ui";
 import {HOLD_STATUS, REVERSAL_BLOCK, formatAmount, formatDuration, shortAddress} from "@/lib/format";
-import {standingContract, useHolds, useMandates, useStanding} from "@/lib/hooks";
-import {isConfigured} from "@/lib/wagmi";
+import {useHolds, useMandates, useStanding, useStandingContract} from "@/lib/hooks";
+import {useDeployment} from "@/lib/deployments";
 import {Authorise} from "@/components/Authorise";
-import {NotConfigured, NotConnected} from "@/components/States";
+import {NotConnected, WrongChain} from "@/components/States";
 import {useReadContracts} from "wagmi";
 
 export default function PayerPage() {
   const {address, isConnected} = useAccount();
+  const {chainId, supported} = useDeployment();
+  const standingContract = useStandingContract();
   const standing = useStanding(address);
   const mandates = useMandates("payer", address);
   const holds = useHolds("payer", address);
@@ -31,8 +33,8 @@ export default function PayerPage() {
     query: {enabled: Boolean(address) && open.length > 0},
   });
 
-  if (!isConfigured) return <NotConfigured />;
   if (!isConnected) return <NotConnected role="payer" />;
+  if (!supported) return <WrongChain chainId={chainId} />;
 
   return (
     <>

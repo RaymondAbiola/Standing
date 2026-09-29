@@ -4,10 +4,16 @@ import {useQuery} from "@tanstack/react-query";
 import {parseAbiItem} from "viem";
 import {usePublicClient, useReadContract} from "wagmi";
 
+import {useDeployment} from "./deployments";
 import {standingAbi} from "./standingAbi";
-import {STANDING_ADDRESS, isConfigured} from "./wagmi";
 
-export const standingContract = {address: STANDING_ADDRESS, abi: standingAbi} as const;
+/// Chain-aware on purpose: the same address holds different contracts on
+/// different chains, so a module-level constant would read the faucet token as
+/// Standing when the wallet is on Robinhood testnet.
+export function useStandingContract() {
+  const {standing, supported} = useDeployment();
+  return {address: standing, abi: standingAbi, enabled: supported} as const;
+}
 
 const MANDATE_CREATED = parseAbiItem(
   "event MandateCreated(bytes32 indexed id, address indexed payer, address indexed merchant, address token, uint256 maxAmount, uint64 minInterval, uint64 expiresAt, uint32 epoch)",
@@ -27,15 +33,16 @@ export type MandateRow = {
 /// can assemble itself. So the list comes from logs.
 export function useMandates(role: "payer" | "merchant", who: `0x${string}` | undefined) {
   const client = usePublicClient();
+  const {address: standing, enabled} = useStandingContract();
 
   return useQuery({
-    queryKey: ["mandates", role, who, STANDING_ADDRESS],
-    enabled: Boolean(client && who && isConfigured),
+    queryKey: ["mandates", role, who, standing],
+    enabled: Boolean(client && who && enabled),
     queryFn: async (): Promise<MandateRow[]> => {
       if (!client || !who) return [];
 
       const logs = await client.getLogs({
-        address: STANDING_ADDRESS,
+        address: standing,
         event: MANDATE_CREATED,
         args: role === "payer" ? {payer: who} : {merchant: who},
         fromBlock: "earliest",
@@ -71,16 +78,18 @@ export type HoldRow = {
 /// reach for a real indexer later.
 export function useHolds(role: "payer" | "merchant", who: `0x${string}` | undefined) {
   const client = usePublicClient();
+  const contract = useStandingContract();
 
   return useQuery({
-    queryKey: ["holds", role, who, STANDING_ADDRESS],
-    enabled: Boolean(client && who && isConfigured),
+    queryKey: ["holds", role, who, contract.address],
+    enabled: Boolean(client && who && contract.enabled),
     refetchInterval: 8_000,
     queryFn: async (): Promise<HoldRow[]> => {
       if (!client || !who) return [];
 
       const next = (await client.readContract({
-        ...standingContract,
+        address: contract.address,
+        abi: contract.abi,
         functionName: "nextHoldId",
       })) as bigint;
 
@@ -91,7 +100,8 @@ export function useHolds(role: "payer" | "merchant", who: `0x${string}` | undefi
 
       const results = await client.multicall({
         contracts: ids.map((holdId) => ({
-          ...standingContract,
+          address: contract.address,
+          abi: contract.abi,
           functionName: "getHold" as const,
           args: [holdId] as const,
         })),
@@ -112,7 +122,8 @@ export function useHolds(role: "payer" | "merchant", who: `0x${string}` | undefi
 }
 
 export function useStanding(payer: `0x${string}` | undefined) {
-  const enabled = Boolean(payer && isConfigured);
+  const standingContract = useStandingContract();
+  const enabled = Boolean(payer && standingContract.enabled);
   const args = payer ? ([payer] as const) : undefined;
 
   const standing = useReadContract({...standingContract, functionName: "standingOf", args, query: {enabled}});
@@ -146,7 +157,8 @@ export function useStanding(payer: `0x${string}` | undefined) {
 }
 
 export function useMerchantStanding(merchant: `0x${string}` | undefined) {
-  const enabled = Boolean(merchant && isConfigured);
+  const standingContract = useStandingContract();
+  const enabled = Boolean(merchant && standingContract.enabled);
   const args = merchant ? ([merchant] as const) : undefined;
 
   const standing = useReadContract({

@@ -11,18 +11,16 @@ import {
 } from "wagmi";
 
 import {
-  DEMO_TOKEN_ADDRESS,
   MANDATE_TYPES,
   PERMIT2_ADDRESS,
   demoTokenAbi,
-  hasDemoToken,
   permit2Abi,
   randomSalt,
   type MandateStruct,
 } from "@/lib/demoAbis";
+import {useDeployment} from "@/lib/deployments";
 import {formatAmount, parseAmount} from "@/lib/format";
-import {standingContract} from "@/lib/hooks";
-import {STANDING_ADDRESS} from "@/lib/wagmi";
+import {useStandingContract} from "@/lib/hooks";
 import {Button, Chip, Field, Input, Section} from "./ui";
 
 const MAX_UINT256 = (1n << 256n) - 1n;
@@ -44,6 +42,8 @@ const PERMIT_DAYS = 365;
 export function Authorise({onDone}: {onDone?: () => void}) {
   const {address} = useAccount();
   const chainId = useChainId();
+  const {standing: STANDING_ADDRESS, demoToken: DEMO_TOKEN_ADDRESS, supported} = useDeployment();
+  const standingContract = useStandingContract();
 
   const [merchant, setMerchant] = useState("");
   const [cap, setCap] = useState("30.00");
@@ -60,7 +60,7 @@ export function Authorise({onDone}: {onDone?: () => void}) {
     abi: demoTokenAbi,
     functionName: "balanceOf",
     args: address ? [address] : undefined,
-    query: {enabled: Boolean(address) && hasDemoToken},
+    query: {enabled: Boolean(address) && supported},
   });
 
   const tokenAllowance = useReadContract({
@@ -68,7 +68,7 @@ export function Authorise({onDone}: {onDone?: () => void}) {
     abi: demoTokenAbi,
     functionName: "allowance",
     args: address ? [address, PERMIT2_ADDRESS] : undefined,
-    query: {enabled: Boolean(address) && hasDemoToken},
+    query: {enabled: Boolean(address) && supported},
   });
 
   const permitAllowance = useReadContract({
@@ -76,7 +76,7 @@ export function Authorise({onDone}: {onDone?: () => void}) {
     abi: permit2Abi,
     functionName: "allowance",
     args: address ? [address, DEMO_TOKEN_ADDRESS, STANDING_ADDRESS] : undefined,
-    query: {enabled: Boolean(address) && hasDemoToken},
+    query: {enabled: Boolean(address) && supported},
   });
 
   const funded = (balance.data ?? 0n) > 0n;
@@ -105,7 +105,7 @@ export function Authorise({onDone}: {onDone?: () => void}) {
     };
   }, [address, merchant, merchantValid, cap, intervalDays]);
 
-  if (!hasDemoToken) return null;
+  if (!supported) return null;
 
   async function sign() {
     if (!terms) return;

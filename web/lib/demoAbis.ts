@@ -76,11 +76,6 @@ export const permit2Abi = [
 
 export const PERMIT2_ADDRESS = "0x000000000022D473030F116dDEE9F6B43aC78BA3" as const;
 
-export const DEMO_TOKEN_ADDRESS = (process.env.NEXT_PUBLIC_DEMO_TOKEN_ADDRESS ||
-  "0x0000000000000000000000000000000000000000") as `0x${string}`;
-
-export const hasDemoToken = DEMO_TOKEN_ADDRESS !== "0x0000000000000000000000000000000000000000";
-
 /// Must match MandateLib.MANDATE_TYPEHASH exactly, field order included. The
 /// contract encodes the ChargeKind enum as uint8, so it is declared that way
 /// here rather than as a named type.

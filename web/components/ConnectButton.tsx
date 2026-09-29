@@ -3,6 +3,7 @@
 import {useAccount, useConnect, useDisconnect, useSwitchChain} from "wagmi";
 
 import {arbitrumSepolia} from "@/lib/chains";
+import {CHAIN_LABELS, DEPLOYMENTS} from "@/lib/deployments";
 import {shortAddress} from "@/lib/format";
 import {Button} from "./ui";
 
@@ -21,12 +22,14 @@ export function ConnectButton() {
     );
   }
 
-  const wrongChain = chainId !== arbitrumSepolia.id;
+  // Either testnet is fine. Forcing one would hide the Robinhood Chain
+  // deployment, which is the one that matters for the programme.
+  const deployed = chainId ? Boolean(DEPLOYMENTS[chainId]) : false;
 
-  if (wrongChain) {
+  if (!deployed) {
     return (
       <Button variant="danger" onClick={() => switchChain({chainId: arbitrumSepolia.id})}>
-        Switch to Arbitrum Sepolia
+        Switch network
       </Button>
     );
   }
@@ -34,6 +37,9 @@ export function ConnectButton() {
   return (
     <Button onClick={() => disconnect()}>
       <span className="num">{shortAddress(address)}</span>
+      <span className="text-[11px]" style={{color: "var(--muted)"}}>
+        {chainId ? CHAIN_LABELS[chainId] : ""}
+      </span>
     </Button>
   );
 }
