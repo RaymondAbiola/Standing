@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+/*
+ * Structural tokens follow the reference design at tern.timidan.xyz: an
+ * olive-dark ground, lifted cards, hairline borders, and one accent used
+ * sparingly. The accent itself is Standing's mint rather than the reference's
+ * acid lime, since the mark and the brand assets are already built on it.
+ */
+@theme {
+  --font-sans: Geist, ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  --color-ground: #0d0f11;
+  --color-card: #15181b;
+  --color-raised: #1c2023;
+  --color-line: #262b30;
+  --color-ink: #eef1f2;
+  --color-muted: #6b747c;
+  --color-faint: #454d54;
+
+  --color-mint: #2fd8a8;
+  --color-mint-edge: #21b88d;
+  --color-mint-soft: #2fd8a821;
+
+  --color-warn: #ff8c77;
+  --color-warn-soft: #ff8c7721;
+  --color-hold: #ffb27a;
+}
+
+:root {
+  --ground: #0d0f11;
+  --card: #15181b;
+  --raised: #1c2023;
+  --line: #262b30;
+  --ink: #eef1f2;
+  --muted: #6b747c;
+  --faint: #454d54;
+}
+
+:root[data-theme="light"] {
+  --ground: #f3f5f6;
+  --card: #ffffff;
+  --raised: #f3f5f6;
+  --line: #e0e4e7;
+  --ink: #0f1214;
+  --muted: #98a2aa;
+  --faint: #c8cfd4;
+}
+
+html,
+body {
+  background: var(--ground);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Section eyebrows: small, uppercase, widely tracked mono. */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Hero type: uppercase mono, wide tracking, tight leading. */
+.display {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.08;
+}
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.row-line + .row-line {
+  border-top: 1px solid var(--line);
+}
+
+.num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
