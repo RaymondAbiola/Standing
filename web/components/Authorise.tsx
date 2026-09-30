@@ -41,7 +41,8 @@ export function Authorise({onDone}: {onDone?: () => void}) {
 
   const [merchant, setMerchant] = useState("");
   const [cap, setCap] = useState("30.00");
-  const [intervalDays, setIntervalDays] = useState("30");
+  const [intervalSecs, setIntervalSecs] = useState("2592000");
+  const [postpaid, setPostpaid] = useState(false);
   const [signed, setSigned] = useState<{mandate: MandateStruct; signature: `0x${string}`} | null>(null);
 
   const {writeContract, busy: txBusy, error: writeError} = useTx();
@@ -83,27 +84,27 @@ export function Authorise({onDone}: {onDone?: () => void}) {
   const terms = useMemo((): MandateStruct | null => {
     if (!address || !merchantValid) return null;
     const now = BigInt(Math.floor(Date.now() / 1000));
-    const days = BigInt(Math.max(1, Number(intervalDays) || 1));
+    const secs = BigInt(Math.max(1, Number(intervalSecs) || 1));
     return {
       payer: address,
       merchant: merchant.trim() as `0x${string}`,
       token: DEMO_TOKEN_ADDRESS,
       maxAmount: parseAmount(cap || "0"),
-      minInterval: days * 86_400n,
+      minInterval: secs,
       startsAt: now,
       expiresAt: now + 365n * 86_400n,
       maxCharges: 0,
-      chargeKind: 0,
+      chargeKind: postpaid ? 1 : 0,
       salt: randomSalt(),
     };
-  }, [address, merchant, merchantValid, cap, intervalDays]);
+  }, [address, merchant, merchantValid, cap, intervalSecs, postpaid]);
 
   // A signature commits to exact terms, so editing the form after signing has
   // to discard it. Otherwise the button would create a mandate on values the
   // form is no longer showing.
   useEffect(() => {
     setSigned(null);
-  }, [merchant, cap, intervalDays]);
+  }, [merchant, cap, intervalSecs, postpaid]);
 
   if (!supported) return null;
 
@@ -216,7 +217,7 @@ export function Authorise({onDone}: {onDone?: () => void}) {
           </Step>
         </ol>
 
-        <div className="mt-6 grid gap-4 border-t pt-5 sm:grid-cols-3" style={{borderColor: "var(--line)"}}>
+        <div className="mt-6 grid gap-4 border-t pt-5 sm:grid-cols-2 lg:grid-cols-4" style={{borderColor: "var(--line)"}}>
           <Field label="Merchant address" hint={merchant && !merchantValid ? "Not a valid address" : "Who may charge you"}>
             <Input
               placeholder="0x…"
@@ -228,13 +229,23 @@ export function Authorise({onDone}: {onDone?: () => void}) {
           <Field label="Max per charge" hint="dUSDC">
             <Input inputMode="decimal" value={cap} onChange={(e) => setCap(e.target.value)} aria-label="Cap" />
           </Field>
-          <Field label="Min days between charges" hint="A floor, not a schedule">
+          <Field label="Min seconds between charges" hint="A floor, not a schedule">
             <Input
               inputMode="numeric"
-              value={intervalDays}
-              onChange={(e) => setIntervalDays(e.target.value)}
-              aria-label="Minimum interval in days"
+              value={intervalSecs}
+              onChange={(e) => setIntervalSecs(e.target.value)}
+              aria-label="Minimum interval in seconds"
             />
+          </Field>
+          <Field label="Charge kind" hint={postpaid ? "Settles at once, never reversible" : "Held for the merchant's window"}>
+            <button
+              type="button"
+              onClick={() => setPostpaid((v) => !v)}
+              className="min-h-11 w-full rounded-lg border px-3 text-left text-[13px]"
+              style={{borderColor: "var(--line)", color: "var(--ink)"}}
+            >
+              {postpaid ? "Postpaid (usage)" : "Prepaid (subscription)"}
+            </button>
           </Field>
         </div>
 
