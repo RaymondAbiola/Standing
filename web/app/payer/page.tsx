@@ -32,6 +32,17 @@ export default function PayerPage() {
     query: {enabled: Boolean(address) && open.length > 0},
   });
 
+  // Summary before detail. A payer's first questions are how much of their
+  // money is in flight right now, and how much could leave if every merchant
+  // charged its maximum. Both come from data already on the page, so this adds
+  // no reads. They also stay readable when the lists below stop being.
+  const inEscrow = open.reduce((acc, h) => acc + h.amount, 0n);
+  const reversibleNow = open.filter((_, i) => Number(blockers.data?.[i]?.result ?? -1) === 0).length;
+
+  const live = (mandates.data ?? []).filter((m) => m.status === 1);
+  const maxPerRound = live.reduce((acc, m) => acc + m.maxAmount, 0n);
+  const merchantCount = new Set(live.map((m) => m.merchant.toLowerCase())).size;
+
   if (!isConnected) return <NotConnected role="payer" />;
   if (!supported) return <WrongChain chainId={chainId} />;
 
@@ -76,8 +87,8 @@ export default function PayerPage() {
         eyebrow="HOLDS"
         title="Charges waiting on you"
         right={
-          <span className="text-[12px]" style={{color: "var(--muted)"}}>
-            Reverse inside the window, or let it settle
+          <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+            {formatAmount(inEscrow)} in escrow &middot; {reversibleNow} reversible now
           </span>
         }
       >
@@ -123,13 +134,20 @@ export default function PayerPage() {
         eyebrow="MANDATES"
         title="Who can charge you"
         right={
-          <Button
-            variant="danger"
-            disabled={busy}
-            onClick={() => writeContract({...standingContract, functionName: "revokeAll", args: []})}
-          >
-            Revoke everything
-          </Button>
+          <div className="flex items-center gap-4">
+            <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+              {live.length} live across {merchantCount}{" "}
+              {merchantCount === 1 ? "merchant" : "merchants"} &middot; max{" "}
+              {formatAmount(maxPerRound)} per round
+            </span>
+            <Button
+              variant="danger"
+              disabled={busy}
+              onClick={() => writeContract({...standingContract, functionName: "revokeAll", args: []})}
+            >
+              Revoke everything
+            </Button>
+          </div>
         }
       >
         {mandates.isError ? (
