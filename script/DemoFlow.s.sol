@@ -30,11 +30,22 @@ interface IPermit2Approve {
 contract DemoFlow is Script {
     uint256 internal constant CYCLE = 30e6;
 
+    /// Salts are derived per run, not fixed.
+    ///
+    /// A mandate id is the hash of its terms and records are never cleared, so
+    /// fixed salts make the script single-use per chain: a second run reverts
+    /// with MandateExists. That matters because `revokeAll` bumps the payer
+    /// epoch and kills every outstanding mandate, which is an easy button to
+    /// press by accident, and recovery means running this again.
+    uint256 internal runSeed;
+
     function run() external {
         Standing standing = Standing(vm.envAddress("STANDING"));
         DemoUSDC token = DemoUSDC(vm.envAddress("DEMO_TOKEN"));
         uint256 key = _privateKey();
         address me = vm.addr(key);
+
+        runSeed = uint256(keccak256(abi.encode(block.timestamp, block.number, me)));
 
         vm.startBroadcast(key);
 
@@ -45,16 +56,23 @@ contract DemoFlow is Script {
                 address(token), address(standing), uint160(200_000e6), uint48(block.timestamp + 365 days)
             );
 
-        // Three postpaid cycles, each its own mandate so no cadence floor can
-        // bite when they land in the same block.
+        // Three postpaid cycles, each its own mandate rather than one charged
+        // three times. `minInterval` cannot be zero, and these all land in the
+        // same broadcast and so can share a block timestamp, which would make
+        // the second charge on a single mandate fail the cadence floor.
+        //
+        // They are revoked straight after settling. Their only job is to vest
+        // the payer, and leaving them active makes four identical-looking rows
+        // in the merchant list where only one is the live subscription.
         for (uint256 i; i < 3; ++i) {
-            Mandate memory warm = _terms(me, address(token), ChargeKind.Postpaid, bytes32(0x100 + i));
+            Mandate memory warm = _terms(me, address(token), ChargeKind.Postpaid, bytes32(runSeed + i));
             bytes32 id = standing.createMandate(warm, _sign(key, standing, warm));
             uint256 holdId = standing.charge(id, CYCLE);
             standing.finalize(holdId);
+            standing.revokeMandate(id);
         }
 
-        Mandate memory live = _terms(me, address(token), ChargeKind.Prepaid, bytes32(uint256(0x200)));
+        Mandate memory live = _terms(me, address(token), ChargeKind.Prepaid, bytes32(runSeed + 100));
         bytes32 liveId = standing.createMandate(live, _sign(key, standing, live));
         uint256 reversible = standing.charge(liveId, CYCLE);
 
