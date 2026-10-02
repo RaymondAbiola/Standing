@@ -62,8 +62,8 @@ The stronger answer: **portable two-sided reputation.** A payer's chargeback his
 |---|---|
 | `MandateRegistry` | Create, revoke, validate mandates. EIP-712 terms, per-payer nonce |
 | `Escrow` | Per-charge holds with `unlockAt`. Finalize, reverse, fee collection |
-| `StandingBook` | Payer reputation state. Vesting, ceiling, suspension, dispersion |
-| `MerchantRegistry` | Merchant history, window length, acceptance policy |
+| `StandingBook` | Payer reputation. Vesting, ceiling, suspension, dispersion, per-pair settled value |
+| `MerchantRegistry` | Merchant history, window tier, acceptance policy, reversal cap |
 
 ### Token permission: Permit2 AllowanceTransfer
 
@@ -102,6 +102,66 @@ Reversal ceiling is a function of `cumulativeCleanSettled`, not cycle count. Set
 This closes reputation laundering: vesting cheaply on a $1 per month service must not unlock the right to reverse a $500 enterprise plan. The size of the asset destroyed by fraud scales with the size of the theft enabled.
 
 The scarce resource is **elapsed time with clean history**, which is the one thing a fresh address cannot buy at any price.
+
+### The global ceiling is forgeable, and what bounds it
+
+`cumulativeCleanSettled` records value but not counterparties. So a payer can
+settle to an address it controls, build a ceiling for the price of gas, and
+spend it somewhere real. Paying yourself satisfies "settled cleanly" exactly.
+
+Three things that do not fix it, for the record:
+
+- **Dispersion of settlements.** Any threshold of N distinct merchants is met
+  with N sybil addresses. It raises the price from one address to N, which is
+  nothing.
+- **The protocol fee.** Forging a ceiling of C needs 3C of volume, costing
+  `fee x 3C`. At the 1% cap that is 0.03C to enable stealing C. The fee would
+  have to exceed 33% to bite.
+- **Ring detection.** Noticing that a payer's five "merchants" have settled with
+  nobody else is graph analysis. Not something a contract does, and only
+  partially something a client does.
+
+**Per-merchant ceilings would close it**, by making the ceiling a function of
+what the payer settled with *that* merchant. They would also destroy portable
+reputation, which is the entire differentiator against a card network, where a
+new merchant knows nothing about you. Closing the hole by deleting the feature
+is not a fix.
+
+**What shipped is a merchant-side bound.** A merchant states how much of a
+stranger's imported ceiling it will honour before that stranger has settled
+anything with it:
+
+> accepted on your global standing, but your reversal right here is capped at
+> `reversalCap` until you have settled `trustThreshold` with me
+
+Portable standing still gets a payer through the door, which preserves the
+differentiator, and a merchant's exposure to a forged ceiling is bounded by a
+number it chose rather than one a stranger fabricated. `cleanSettledWith`
+tracks the per-pair figure, and `effectiveCeilingForHold` applies it.
+
+A `trustThreshold` of zero means the global ceiling applies outright, which is
+the permissive default. A cap with a zero threshold is **refused** at
+`setAcceptancePolicy`, because the cap only binds below the threshold and would
+otherwise silently do nothing while a merchant believed it was protected.
+
+This bounds the attack rather than eliminating it. Onchain history remains a
+signal, not a proof, which is the same conclusion every other Sybil surface in
+this design reaches.
+
+### Merchant terms are frozen at charge time
+
+`reversalCap` and `trustThreshold` are snapshotted into the hold, for the same
+reason as `feeBps` and the mandate terms.
+
+Without it a merchant could take the money and then tighten its policy to
+nothing, stripping the payer's remedy on a charge already in escrow, which
+defeats the window entirely. That hole existed in the first draft of the cap
+and was caught by stress-testing before deployment; three regression tests now
+pin it.
+
+The freeze is one-sided on purpose. The payer's own `cleanSettledWith` is read
+live, so settling more with that merchant during the window still lifts the cap.
+Only the merchant's terms are fixed.
 
 ### Vesting is global, not per-merchant
 
@@ -196,9 +256,12 @@ so an absurd interval is a merchant's own decision. And reversals dispersed acro
 merchants suspend the right, though that does nothing for a single merchant being
 drained.
 
-**Not fixed in v1, and stated rather than hidden.** The proper fix is a rolling cap
-on reversed value per unit time, alongside the per-reversal ceiling, so that
-aggregate exposure stops scaling with hold count. That is a mechanism change, not a
+**Partly bounded, not fixed.** A merchant's `reversalCap` lowers the per-reversal
+figure in the formula above while a payer is untrusted, so aggregate exposure to
+a *stranger* is `reversalCap x (window / minInterval)` rather than the full
+ceiling. Once the payer passes `trustThreshold` the original formula returns. The
+proper fix is still a rolling cap on reversed value per unit time, alongside the
+per-reversal ceiling, so that aggregate exposure stops scaling with hold count. That is a mechanism change, not a
 parameter change, and it belongs after the buildathon.
 
 The practical mitigation today is advice rather than code: a merchant should set
@@ -234,7 +297,7 @@ reversal right they had earned on it.
 
 ### Surfaces covered by tests
 
-155 tests across eight suites, plus seven invariant properties holding over roughly
+174 tests across nine suites, plus seven invariant properties holding over roughly
 33,000 random call sequences. The suites worth naming:
 
 - `Sybil.t.sol` measures what the churn-and-claw attack actually yields rather than
@@ -243,6 +306,9 @@ reversal right they had earned on it.
   percent is tolerated and 30 percent is not
 - `Escrow.t.sol` closes the hold state machine in both directions, since every gap
   in it is a double spend
+- `AcceptancePolicy.t.sol` covers admission and the reversal cap, including that
+  tightening a policy cannot reach an open hold and that a cap with no threshold
+  is refused
 - The invariant suite asserts solvency, token conservation, and that standing never
   drifts from settlements
 
@@ -250,7 +316,10 @@ reversal right they had earned on it.
 
 ## 8. Parameters
 
-All owner-settable within hard bounds so they can be tuned without redeployment.
+Protocol parameters are constants, changed by redeploy, which keeps the owner's
+powers to exactly two: the fee within its hard cap, and sweeping accrued fees.
+The last two rows are not protocol parameters at all; each merchant sets them
+for itself.
 
 | Parameter | Default | Purpose |
 |---|---|---|
@@ -263,7 +332,9 @@ All owner-settable within hard bounds so they can be tuned without redeployment.
 | Window, new merchant | 5 days | Initial hold |
 | Window, established merchant | Down to hours | Shortens with clean history |
 | Retry policy | Daily for 5 days, then suspend mandate | Failed charge handling, no standing penalty |
-| Protocol fee | Basis points, taken at finalize | Revenue |
+| Protocol fee | Basis points, capped at 100, taken at finalize | Revenue |
+| Reversal cap until trusted | Merchant's choice, snapshotted per hold | Bounds a forged imported ceiling |
+| Trust threshold | Merchant's choice, zero disables the cap | Value a payer must settle before the cap lifts |
 
 ---
 
