@@ -29,7 +29,16 @@ export const robinhoodTestnet = defineChain({
   id: 46630,
   name: "Robinhood Chain Testnet",
   nativeCurrency: {name: "Ether", symbol: "ETH", decimals: 18},
-  rpcUrls: {default: {http: ["https://rpc.testnet.chain.robinhood.com"]}},
+  // Overridable like the others. The public endpoint is fine for a few
+  // visitors, but the home page polls every twenty seconds from each browser,
+  // so a rate limit on demo day needs to be fixable without a redeploy.
+  rpcUrls: {
+    default: {
+      http: [
+        process.env.NEXT_PUBLIC_ROBINHOOD_TESTNET_RPC || "https://rpc.testnet.chain.robinhood.com",
+      ],
+    },
+  },
   blockExplorers: {
     default: {name: "Blockscout", url: "https://explorer.testnet.chain.robinhood.com"},
   },
