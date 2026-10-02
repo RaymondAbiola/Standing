@@ -144,24 +144,24 @@ export function Authorise({onDone}: {onDone?: () => void}) {
             className="mt-5 rounded-lg border px-4 py-3 text-[13px]"
             style={{borderColor: "var(--color-warn)", color: "var(--color-warn)"}}
           >
-            This wallet has no {gas.data?.symbol ?? "ETH"} for fees, so none of the steps below will send.
-            The test dollars in step 1 are free and mintable by anyone; gas is not.
-            {deployment?.faucet ? (
-              <>
-                {" "}
+            <p>
+              This wallet has no {gas.data?.symbol ?? "ETH"} for fees, so none of the steps below will
+              send. The test dollars in step 1 are free and mintable by anyone; gas is not.
+            </p>
+            <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span style={{color: "var(--muted)"}}>Faucets:</span>
+              {(deployment?.faucets ?? []).map((f) => (
                 <a
-                  href={deployment.faucet}
+                  key={f.url}
+                  href={f.url}
                   target="_blank"
                   rel="noreferrer"
                   className="underline decoration-dotted underline-offset-4"
                 >
-                  Get some here
+                  {f.name}
                 </a>
-                .
-              </>
-            ) : (
-              " Request some from the network's faucet first."
-            )}
+              ))}
+            </p>
           </div>
         ) : null}
 

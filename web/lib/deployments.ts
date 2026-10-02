@@ -19,9 +19,13 @@ export type Deployment = {
   /// blocks for a contract deployed last week is a query no endpoint will
   /// serve.
   deployedAt: bigint;
-  /// Where to get gas, when one is published. The faucet token is mintable
-  /// from the app, but native ETH for fees cannot be.
-  faucet?: string;
+  /// Where to get gas. The faucet token is mintable from the app, but native
+  /// ETH for fees cannot be.
+  ///
+  /// More than one, deliberately. Faucets rate-limit, and the canonical
+  /// Robinhood one answered 429 when checked, so a single link is a dead end
+  /// for anyone who hits a cap. All of these were verified reachable.
+  faucets: {name: string; url: string}[];
 };
 
 /*
@@ -40,7 +44,10 @@ export const DEPLOYMENTS: Record<number, Deployment> = {
     explorer: "https://sepolia.arbiscan.io",
     label: "Arbitrum Sepolia",
     deployedAt: 314_840_104n,
-    faucet: "https://www.alchemy.com/faucets/arbitrum-sepolia",
+    faucets: [
+      {name: "Alchemy", url: "https://www.alchemy.com/faucets/arbitrum-sepolia"},
+      {name: "QuickNode", url: "https://faucet.quicknode.com/arbitrum/sepolia"},
+    ],
   },
   [robinhoodTestnet.id]: {
     standing: "0x5719cd77c190420Ec38DC6dbea6Fc19D529Ad4E7",
@@ -48,6 +55,11 @@ export const DEPLOYMENTS: Record<number, Deployment> = {
     explorer: "https://explorer.testnet.chain.robinhood.com",
     label: "Robinhood Chain Testnet",
     deployedAt: 127_385_540n,
+    faucets: [
+      {name: "Robinhood", url: "https://faucet.testnet.chain.robinhood.com/"},
+      {name: "Alchemy", url: "https://www.alchemy.com/faucets/robinhood-testnet"},
+      {name: "QuickNode", url: "https://faucet.quicknode.com/robinhood/testnet"},
+    ],
   },
 };
 
