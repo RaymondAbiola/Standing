@@ -147,19 +147,26 @@ export default function PayerPage() {
                 <Chip tone={m.chargeKind === 1 ? "plain" : "good"}>
                   {m.chargeKind === 1 ? "postpaid" : "prepaid"}
                 </Chip>
+                {m.status === 2 ? <Chip tone="warn">revoked</Chip> : null}
                 <span className="num text-[13px]" style={{color: "var(--muted)"}}>
                   max {formatAmount(m.maxAmount)} / {formatDuration(m.minInterval)}
                 </span>
                 <div className="ml-auto">
-                  <Button
-                    variant="danger"
-                    disabled={busy}
-                    onClick={() =>
-                      writeContract({...standingContract, functionName: "revokeMandate", args: [m.id]})
-                    }
-                  >
-                    Revoke
-                  </Button>
+                  {m.status === 2 ? (
+                    <span className="text-[12px]" style={{color: "var(--muted)"}}>
+                      no longer chargeable
+                    </span>
+                  ) : (
+                    <Button
+                      variant="danger"
+                      disabled={busy}
+                      onClick={() =>
+                        writeContract({...standingContract, functionName: "revokeMandate", args: [m.id]})
+                      }
+                    >
+                      Revoke
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
