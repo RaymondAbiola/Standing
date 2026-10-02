@@ -10,6 +10,9 @@
     "one-contract-per-file": "off",
     "ordering": "warn",
     "gas-custom-errors": "off",
-    "interface-starts-with-i": "error"
+    "interface-starts-with-i": "error",
+    "no-console": "off",
+    "import-path-check": "off",
+    "reason-string": ["warn", {"maxLength": 64}]
   }
 }

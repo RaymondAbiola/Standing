@@ -57,3 +57,15 @@ jobs:
 
       - run: npm install --no-audit --no-fund
       - run: npm run lint
+
+      # solhint's no-console rule is off, because console.log is how a Foundry
+      # deploy script reports what it did and never reaches deployed bytecode.
+      # src/ is a different matter: a console import there is dead weight in
+      # every deployment, so it is checked directly rather than left to a rule
+      # that cannot tell the two trees apart.
+      - name: No console in deployed sources
+        run: |
+          if grep -rn "console" src/; then
+            echo "::error::console usage in src/ ships in deployed bytecode"
+            exit 1
+          fi
