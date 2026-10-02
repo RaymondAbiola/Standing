@@ -144,6 +144,9 @@ export default function PayerPage() {
                   {shortAddress(m.id)}
                 </span>
                 <span className="num text-[13px]">{shortAddress(m.merchant)}</span>
+                <Chip tone={m.chargeKind === 1 ? "plain" : "good"}>
+                  {m.chargeKind === 1 ? "postpaid" : "prepaid"}
+                </Chip>
                 <span className="num text-[13px]" style={{color: "var(--muted)"}}>
                   max {formatAmount(m.maxAmount)} / {formatDuration(m.minInterval)}
                 </span>

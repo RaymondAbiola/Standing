@@ -26,6 +26,11 @@ export type MandateRow = {
   token: `0x${string}`;
   maxAmount: bigint;
   minInterval: bigint;
+  /// 0 prepaid, 1 postpaid. Not in the event, so it comes from stored terms.
+  chargeKind: number;
+  /// 1 active, 2 revoked.
+  status: number;
+  chargeCount: number;
 };
 
 /// There is no onchain index of a payer's or merchant's mandates, because
@@ -50,14 +55,45 @@ export function useMandates(role: "payer" | "merchant", who: `0x${string}` | und
         toBlock: "latest",
       });
 
-      return logs.map((l) => ({
-        id: l.args.id as `0x${string}`,
-        payer: l.args.payer as `0x${string}`,
-        merchant: l.args.merchant as `0x${string}`,
-        token: l.args.token as `0x${string}`,
-        maxAmount: l.args.maxAmount as bigint,
-        minInterval: l.args.minInterval as bigint,
-      }));
+      if (logs.length === 0) return [];
+
+      // `chargeKind` is not in the event, and without it every row of a
+      // merchant's list looks identical. Read the stored record instead, which
+      // also gives live status and charge count rather than creation-time
+      // values.
+      const records = await client.multicall({
+        contracts: logs.map((l) => ({
+          address: standing,
+          abi: standingAbi,
+          functionName: "getMandate" as const,
+          args: [l.args.id as `0x${string}`] as const,
+        })),
+        allowFailure: true,
+      });
+
+      return logs.map((l, i) => {
+        const r = records[i];
+        const rec =
+          r?.status === "success"
+            ? (r.result as unknown as {
+                terms: {chargeKind: number};
+                status: number;
+                chargeCount: number;
+              })
+            : undefined;
+
+        return {
+          id: l.args.id as `0x${string}`,
+          payer: l.args.payer as `0x${string}`,
+          merchant: l.args.merchant as `0x${string}`,
+          token: l.args.token as `0x${string}`,
+          maxAmount: l.args.maxAmount as bigint,
+          minInterval: l.args.minInterval as bigint,
+          chargeKind: Number(rec?.terms?.chargeKind ?? 0),
+          status: Number(rec?.status ?? 0),
+          chargeCount: Number(rec?.chargeCount ?? 0),
+        };
+      });
     },
   });
 }

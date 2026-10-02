@@ -90,10 +90,17 @@ export default function MerchantPage() {
               const ok = code === 0 && typed.length > 0;
               return (
                 <div key={m.id} className="row-line flex flex-wrap items-center gap-3 px-4 py-3">
-                  <div className="min-w-[150px]">
-                    <p className="num text-[13px]">{shortAddress(m.payer)}</p>
+                  <div className="min-w-[190px]">
+                    <p className="flex items-center gap-2 text-[13px]">
+                      <span className="num">{shortAddress(m.payer)}</span>
+                      <Chip tone={m.chargeKind === 1 ? "plain" : "good"}>
+                        {m.chargeKind === 1 ? "postpaid" : "prepaid"}
+                      </Chip>
+                      {m.status === 2 ? <Chip tone="warn">revoked</Chip> : null}
+                    </p>
                     <p className="num text-[11px]" style={{color: "var(--muted)"}}>
-                      max {formatAmount(m.maxAmount)} / {formatDuration(m.minInterval)}
+                      {shortAddress(m.id)} &middot; max {formatAmount(m.maxAmount)} /{" "}
+                      {formatDuration(m.minInterval)} &middot; {m.chargeCount} charged
                     </p>
                   </div>
                   <div className="w-[130px]">
