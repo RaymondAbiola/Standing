@@ -2,6 +2,7 @@ import type {Metadata} from "next";
 import {Geist, Geist_Mono} from "next/font/google";
 
 import {Providers} from "./providers";
+import {Mark} from "@/components/Mark";
 import {SiteNav} from "@/components/SiteNav";
 import "./globals.css";
 
@@ -25,7 +26,13 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
               className="flex flex-wrap items-center justify-between gap-4 border-t pt-6 text-[13px]"
               style={{borderColor: "var(--line)", color: "var(--muted)"}}
             >
-              <span>Standing</span>
+              <span
+                className="flex items-center gap-2 text-[15px] font-semibold tracking-tight"
+                style={{color: "var(--ink)"}}
+              >
+                <Mark size={20} />
+                Standing
+              </span>
               <span className="eyebrow">Arbitrum Sepolia &middot; Robinhood Chain</span>
               <a
                 href="https://github.com"
