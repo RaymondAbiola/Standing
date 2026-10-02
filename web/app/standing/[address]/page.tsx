@@ -124,7 +124,7 @@ function ChainRecord({record: r, address}: {record: AddressRecord; address: stri
 
           <div>
             <p className="eyebrow mb-3">As a merchant</p>
-            <div className="grid gap-3 sm:grid-cols-4">
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
               <Stat
                 label="Hold window"
                 value={formatDuration(r.merchant.window)}
@@ -145,6 +145,20 @@ function ChainRecord({record: r, address}: {record: AddressRecord; address: stri
                   r.merchant.policySet
                     ? `min ${r.merchant.minCleanSettlements} clean, max ${r.merchant.maxReversalsInWindow} reversals`
                     : "No acceptance policy set"
+                }
+              />
+              <Stat
+                label="Honours imported ceilings"
+                value={
+                  r.merchant.trustThreshold > 0n
+                    ? `up to ${formatAmount(r.merchant.reversalCap)}`
+                    : "In full"
+                }
+                tone={r.merchant.trustThreshold > 0n ? "warn" : "plain"}
+                hint={
+                  r.merchant.trustThreshold > 0n
+                    ? `until a payer has settled ${formatAmount(r.merchant.trustThreshold)} here`
+                    : "No cap on a stranger's global ceiling"
                 }
               />
             </div>

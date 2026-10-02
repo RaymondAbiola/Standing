@@ -43,18 +43,18 @@ Copy `.env.example` to `.env` and fill it before running anything against a netw
 
 | Network | Chain ID | Standing | Faucet token |
 |---|---|---|---|
-| Arbitrum Sepolia | 421614 | [`0xfa820CB1…dB98`](https://sepolia.arbiscan.io/address/0xfa820CB11e871eB05334d0f9567F7804c68CdB98) | [`0xa46c8271…86DF`](https://sepolia.arbiscan.io/address/0xa46c8271C5344a21932ebea331DD8086189986DF) |
-| Robinhood Chain Testnet | 46630 | [`0x3D30B846…a5D3`](https://explorer.testnet.chain.robinhood.com/address/0x3D30B84664E33CE51015a6B310544F45d63aA5D3) | [`0xfa820CB1…dB98`](https://explorer.testnet.chain.robinhood.com/address/0xfa820CB11e871eB05334d0f9567F7804c68CdB98) |
+| Arbitrum Sepolia | 421614 | [`0xC91F8976…DCD7`](https://sepolia.arbiscan.io/address/0xC91F89766f5B0A8a2918f7C672eAf41B90FBDCD7) | [`0x9b14830d…Fdf5`](https://sepolia.arbiscan.io/address/0x9b14830dceb7f15f0Def9a25664C313a5C88Fdf5) |
+| Robinhood Chain Testnet | 46630 | [`0x5719cd77…d4E7`](https://explorer.testnet.chain.robinhood.com/address/0x5719cd77c190420Ec38DC6dbea6Fc19D529Ad4E7) | [`0xDC37130a…4b8a`](https://explorer.testnet.chain.robinhood.com/address/0xDC37130a3f2D07EAacf6d8d66352932c79474b8a) |
 
 Both are verified. Permit2 sits at `0x000000000022D473030F116dDEE9F6B43aC78BA3` on both, with
 identical bytecode.
 
-**Read that table carefully: the same address means different things on different chains.** Standing
-on Arbitrum Sepolia and the faucet token on Robinhood testnet share an address, because CREATE
-derives from the deployer and its nonce and the same deployer was used on both chains with
-independent nonce sequences. Anything holding a single address for "the Standing contract" will read
-one as the other. The frontend keys addresses by chain id in `web/lib/deployments.ts` for exactly
-this reason.
+**Addresses are per chain and must never be collapsed into one value.** CREATE derives an address from
+the deployer and its nonce, and the same deployer was used on both chains with independent nonce
+sequences. An earlier deployment had Standing on Arbitrum Sepolia sharing an address with the faucet
+token on Robinhood testnet, which would have made a single "the Standing contract" address read one as
+the other. The four above happen not to collide, but the hazard is structural, so the frontend keys
+addresses by chain id in `web/lib/deployments.ts`.
 
 The faucet token is testnet scaffolding with an open mint, so the demo has something to charge in. It
 is deployed from `script/` and nothing in `src/` imports it.

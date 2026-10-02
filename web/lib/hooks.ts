@@ -215,7 +215,14 @@ export function useMerchantStanding(merchant: `0x${string}` | undefined) {
     window: window.data as bigint | undefined,
     flagged: flagged.data as boolean | undefined,
     policy: policy.data as
-      | {set: boolean; refuseSuspended: boolean; maxReversalsInWindow: number; minCleanSettlements: number}
+      | {
+          set: boolean;
+          refuseSuspended: boolean;
+          maxReversalsInWindow: number;
+          minCleanSettlements: number;
+          reversalCap: bigint;
+          trustThreshold: bigint;
+        }
       | undefined,
   };
 }

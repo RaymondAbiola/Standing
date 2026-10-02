@@ -31,6 +31,8 @@ export default function MerchantPage() {
   const [minClean, setMinClean] = useState("0");
   const [maxReversals, setMaxReversals] = useState("255");
   const [refuseSuspended, setRefuseSuspended] = useState(true);
+  const [reversalCap, setReversalCap] = useState("0");
+  const [trustThreshold, setTrustThreshold] = useState("0");
 
   const all = mandates.data ?? [];
 
@@ -206,6 +208,12 @@ export default function MerchantPage() {
             catch it is the same rule protecting the customers of a broken merchant. This is what you do
             instead: read a payer&apos;s history and decline the next mandate.
           </p>
+          <p className="mt-3 max-w-[62ch] text-[13px] leading-relaxed" style={{color: "var(--muted)"}}>
+            The cap goes further. A payer&apos;s global ceiling records value but not counterparties, so it can
+            be manufactured by settling to an address they control. Below, you state how much of a
+            stranger&apos;s imported ceiling you will honour before they have settled anything with you. Terms
+            are frozen into each charge, so tightening later cannot reach money already in escrow.
+          </p>
 
           <div className="mt-5 grid gap-4 sm:grid-cols-3">
             <Field label="Min clean settlements" hint="0 accepts anyone">
@@ -222,6 +230,22 @@ export default function MerchantPage() {
                 value={maxReversals}
                 onChange={(e) => setMaxReversals(e.target.value)}
                 aria-label="Maximum reversals in window"
+              />
+            </Field>
+            <Field label="Reversal cap until trusted" hint="0 allows no reversals from a stranger">
+              <Input
+                inputMode="decimal"
+                value={reversalCap}
+                onChange={(e) => setReversalCap(e.target.value)}
+                aria-label="Reversal cap until trusted"
+              />
+            </Field>
+            <Field label="Settled with you to lift the cap" hint="0 disables the cap entirely">
+              <Input
+                inputMode="decimal"
+                value={trustThreshold}
+                onChange={(e) => setTrustThreshold(e.target.value)}
+                aria-label="Trust threshold"
               />
             </Field>
             <Field label="Suspended payers">
@@ -244,7 +268,13 @@ export default function MerchantPage() {
                 writeContract({
                   ...standingContract,
                   functionName: "setAcceptancePolicy",
-                  args: [Number(minClean || 0), Number(maxReversals || 0), refuseSuspended],
+                  args: [
+                    Number(minClean || 0),
+                    Number(maxReversals || 0),
+                    refuseSuspended,
+                    parseAmount(reversalCap || "0"),
+                    parseAmount(trustThreshold || "0"),
+                  ],
                 })
               }
             >
@@ -261,6 +291,9 @@ export default function MerchantPage() {
             {standing.policy?.set ? (
               <Chip tone="good">
                 live: min {standing.policy.minCleanSettlements}, max {standing.policy.maxReversalsInWindow}
+                {standing.policy.trustThreshold > 0n
+                  ? `, cap ${formatAmount(standing.policy.reversalCap)} until ${formatAmount(standing.policy.trustThreshold)}`
+                  : ""}
               </Chip>
             ) : (
               <Chip tone="plain">no policy set</Chip>

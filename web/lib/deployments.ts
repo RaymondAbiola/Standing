@@ -32,18 +32,18 @@ export type Deployment = {
  */
 export const DEPLOYMENTS: Record<number, Deployment> = {
   [arbitrumSepolia.id]: {
-    standing: "0xfa820CB11e871eB05334d0f9567F7804c68CdB98",
-    demoToken: "0xa46c8271C5344a21932ebea331DD8086189986DF",
+    standing: "0xC91F89766f5B0A8a2918f7C672eAf41B90FBDCD7",
+    demoToken: "0x9b14830dceb7f15f0Def9a25664C313a5C88Fdf5",
     explorer: "https://sepolia.arbiscan.io",
     label: "Arbitrum Sepolia",
-    deployedAt: 313_791_936n,
+    deployedAt: 314_840_104n,
   },
   [robinhoodTestnet.id]: {
-    standing: "0x3D30B84664E33CE51015a6B310544F45d63aA5D3",
-    demoToken: "0xfa820CB11e871eB05334d0f9567F7804c68CdB98",
+    standing: "0x5719cd77c190420Ec38DC6dbea6Fc19D529Ad4E7",
+    demoToken: "0xDC37130a3f2D07EAacf6d8d66352932c79474b8a",
     explorer: "https://explorer.testnet.chain.robinhood.com",
     label: "Robinhood Chain Testnet",
-    deployedAt: 125_950_793n,
+    deployedAt: 127_385_540n,
   },
 };
 

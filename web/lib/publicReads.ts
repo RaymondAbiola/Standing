@@ -147,6 +147,8 @@ export type AddressRecord = {
     minCleanSettlements: number;
     maxReversalsInWindow: number;
     refuseSuspended: boolean;
+    reversalCap: bigint;
+    trustThreshold: bigint;
   };
 };
 
@@ -201,7 +203,14 @@ async function readAddressRecord(
     | {settlements: number; reversals: number; distinctPayersReversed: number}
     | undefined;
   const p = policy.result as unknown as
-    | {set: boolean; refuseSuspended: boolean; maxReversalsInWindow: number; minCleanSettlements: number}
+    | {
+        set: boolean;
+        refuseSuspended: boolean;
+        maxReversalsInWindow: number;
+        minCleanSettlements: number;
+        reversalCap: bigint;
+        trustThreshold: bigint;
+      }
     | undefined;
 
   return {
@@ -231,6 +240,8 @@ async function readAddressRecord(
       minCleanSettlements: Number(p?.minCleanSettlements ?? 0),
       maxReversalsInWindow: Number(p?.maxReversalsInWindow ?? 0),
       refuseSuspended: Boolean(p?.refuseSuspended),
+      reversalCap: (p?.reversalCap ?? 0n) as bigint,
+      trustThreshold: (p?.trustThreshold ?? 0n) as bigint,
     },
   };
 }

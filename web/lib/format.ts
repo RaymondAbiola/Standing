@@ -51,6 +51,7 @@ export const REVERSAL_BLOCK = [
   "Not vested",
   "Suspended",
   "Above ceiling",
+  "Above this merchant's cap",
 ] as const;
 
 export const CHARGE_BLOCK = [
