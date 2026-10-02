@@ -1,0 +1,122 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Standing survey frame</title>
+<style>
+  :root {
+    --surface: #0b0d0f;
+    --panel: #14171a;
+    --line: #272c31;
+    --ink: #f2f5f6;
+    --muted: #9aa4ac;
+    --accent: #3ce0b0;
+    --quiet: #646d75;
+  }
+  :root[data-theme="light"] {
+    --surface: #f6f7f8;
+    --panel: #ffffff;
+    --line: #dfe4e7;
+    --ink: #0c0f11;
+    --muted: #4a535a;
+    --accent: #06795a;
+    --quiet: #b8c0c6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1080px; }
+  body {
+    background: var(--surface);
+    color: var(--ink);
+    font-family: Inter, "Helvetica Neue", Arial, "Liberation Sans", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 64px 72px 56px;
+    display: flex;
+    flex-direction: column;
+  }
+  .eyebrow {
+    font-size: 19px; font-weight: 600; letter-spacing: 0.15em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  h1 { font-size: 46px; font-weight: 650; letter-spacing: -0.022em; margin-top: 16px; }
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; margin-top: 48px; flex: 1; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 18px; padding: 36px 40px 34px;
+    display: flex; flex-direction: column;
+  }
+  h2 { font-size: 26px; font-weight: 620; letter-spacing: -0.012em; line-height: 1.25; }
+  .sub { font-size: 17px; color: var(--muted); margin-top: 10px; }
+  .rows { margin-top: 32px; display: flex; flex-direction: column; flex: 1;
+           justify-content: space-between; }
+  /* 2px surface gap does the separating between adjacent bars */
+  .row { padding-bottom: 2px; }
+  .rlab { font-size: 19px; color: var(--ink); margin-bottom: 9px; }
+  .track { display: flex; align-items: center; gap: 14px; }
+  /* bar: capped at 24px, 4px rounded data-end, square at the baseline */
+  .bar { height: 24px; border-radius: 0 4px 4px 0; background: var(--quiet); }
+  .bar.on { background: var(--accent); }
+  .val { font-size: 19px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .val span { color: var(--muted); font-weight: 500; }
+  .foot {
+    margin-top: 40px; display: flex; align-items: center; gap: 13px;
+    font-size: 20px; color: var(--muted);
+  }
+  .key { width: 34px; height: 12px; border-radius: 0 3px 3px 0; background: var(--accent); flex: none; }
+  .foot b { color: var(--ink); font-weight: 600; }
+</style>
+<body>
+  <p class="eyebrow">Survey &middot; 28 responses from crypto builder communities</p>
+  <h1>Companies that serve crypto customers are billing them by bank transfer.</h1>
+
+  <div class="cols">
+    <section class="panel">
+      <h2>How do you collect recurring payments from crypto-native customers?</h2>
+      <p class="sub">Respondents could pick more than one</p>
+      <div class="rows" id="a"></div>
+    </section>
+    <section class="panel">
+      <h2>Have you declined stablecoins for recurring billing? What stopped you?</h2>
+      <p class="sub">Shown in the order they ranked, not reordered</p>
+      <div class="rows" id="b"></div>
+    </section>
+  </div>
+
+  <p class="foot">
+    <span class="key"></span>
+    <span>Highlighted in mint: <b>the two gaps Standing closes.</b> They are the first and third most cited blockers.</span>
+  </p>
+
+<script>
+  const A = [
+    ["Bank transfer / wire", 13, true],
+    ["Card processor (Stripe, Paddle)", 6, false],
+    ["Streaming payments (Superfluid, Sablier)", 5, false],
+    ["Prepaid credits or top-up", 3, false],
+    ["Do not accept crypto for recurring billing", 3, false],
+    ["Manual invoice, customer sends it", 2, false],
+  ];
+  const B = [
+    ["No way to auto-charge on a schedule", 10, true],
+    ["Customers did not ask for it", 7, false],
+    ["No way to handle disputes or refunds", 6, true],
+    ["Accounting and reconciliation burden", 6, false],
+    ["Custody or regulatory concerns", 4, false],
+    ["Have not declined it", 4, false],
+    ["Engineering effort required", 3, false],
+  ];
+  const N = 28;
+  // one scale across both panels, so a bar length means the same thing on each
+  const MAX = Math.max(...A.map(r => r[1]), ...B.map(r => r[1]));
+  const TRACK = 560;
+
+  function draw(id, rows) {
+    document.getElementById(id).innerHTML = rows.map(([label, n, on]) => `
+      <div class="row">
+        <div class="rlab">${label}</div>
+        <div class="track">
+          <div class="bar${on ? " on" : ""}" style="width:${(n / MAX) * TRACK}px"></div>
+          <div class="val">${n} of ${N} <span>&middot; ${Math.round(100 * n / N)}%</span></div>
+        </div>
+      </div>`).join("");
+  }
+  draw("a", A);
+  draw("b", B);
+</script>
