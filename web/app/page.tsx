@@ -1,6 +1,8 @@
 import Link from "next/link";
 
+import {LiveStats} from "@/components/LiveStats";
 import {Mark} from "@/components/Mark";
+import {MechanismDiagram} from "@/components/MechanismDiagram";
 
 const STEPS = [
   {
@@ -62,7 +64,13 @@ export default function Home() {
         <p className="mt-5 text-[13px]" style={{color: "var(--muted)"}}>
           Chargebacks do not exist onchain. Standing is what replaces them, without an arbiter.
         </p>
+
+        <div className="mt-6">
+          <MechanismDiagram />
+        </div>
       </section>
+
+      <LiveStats />
 
       <div className="mx-auto max-w-[1000px] px-4">
         {STEPS.map((s) => (

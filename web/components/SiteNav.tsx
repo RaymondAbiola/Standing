@@ -10,6 +10,7 @@ import {ThemeToggle} from "./ThemeToggle";
 const LINKS = [
   {href: "/payer", label: "Payer"},
   {href: "/merchant", label: "Merchant"},
+  {href: "/standing", label: "Look up"},
 ];
 
 export function SiteNav() {
