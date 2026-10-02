@@ -26,8 +26,8 @@ const STEPS = [
   {
     n: "04",
     eyebrow: "THE HARD PART",
-    title: "A free reversal right is a free option.",
-    body: "No merchant accepts one, so the right is earned rather than granted. It vests after three clean settlements, and its ceiling is a third of what the payer has settled cleanly. A fresh address holds no right at all, which is what removes the churn-and-claw attack instead of policing it.",
+    title: "If taking money back is free, people will do it when nothing went wrong.",
+    body: "Someone who can always pull a charge back has no reason to save it for real problems. They changed their mind, they found it cheaper, they are short this month. The merchant loses out every time, so no merchant would agree to it. That is why the right has to be earned instead of given. It opens up after three charges you let through without complaint, and you can never pull back more than a third of what you have actually paid. A brand new address cannot pull back anything at all, which is what stops someone starting over with a fresh wallet and doing it again.",
   },
 ];
 
