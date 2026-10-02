@@ -5,12 +5,13 @@ import {useSwitchChain} from "wagmi";
 
 import {arbitrumSepolia, robinhoodTestnet} from "@/lib/chains";
 import {CHAIN_LABELS} from "@/lib/deployments";
+import {NetworkDetails} from "./NetworkDetails";
 import {Button, Section} from "./ui";
 
 /// Standing is deployed on two testnets and the addresses differ per chain,
 /// so a wallet on anything else has nothing to read.
 export function WrongChain({chainId}: {chainId: number | undefined}) {
-  const {switchChain} = useSwitchChain();
+  const {switchChain, error, isPending} = useSwitchChain();
   const where = chainId ? CHAIN_LABELS[chainId] || `chain ${chainId}` : "an unknown network";
 
   return (
@@ -21,11 +22,26 @@ export function WrongChain({chainId}: {chainId: number | undefined}) {
           reads whichever chain your wallet is on.
         </p>
         <div className="mt-5 flex flex-wrap gap-3">
-          <Button variant="primary" onClick={() => switchChain({chainId: arbitrumSepolia.id})}>
+          <Button
+            variant="primary"
+            disabled={isPending}
+            onClick={() => switchChain({chainId: arbitrumSepolia.id})}
+          >
             Arbitrum Sepolia
           </Button>
-          <Button onClick={() => switchChain({chainId: robinhoodTestnet.id})}>Robinhood Testnet</Button>
+          <Button disabled={isPending} onClick={() => switchChain({chainId: robinhoodTestnet.id})}>
+            Robinhood Testnet
+          </Button>
         </div>
+
+        {error ? (
+          <p className="mt-4 max-w-[60ch] text-[12px]" style={{color: "var(--color-warn)"}}>
+            Your wallet refused the switch: {error.message.split("\n")[0]}. Some wallets throw on this
+            request even when the network would work, so add it by hand below.
+          </p>
+        ) : null}
+
+        <NetworkDetails />
       </div>
     </Section>
   );
