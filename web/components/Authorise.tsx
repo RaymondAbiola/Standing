@@ -1,7 +1,7 @@
 "use client";
 
 import {useEffect, useMemo, useState} from "react";
-import {useAccount, useChainId, useReadContract, useSignTypedData} from "wagmi";
+import {useAccount, useBalance, useChainId, useReadContract, useSignTypedData} from "wagmi";
 
 import {
   MANDATE_TYPES,
@@ -36,7 +36,7 @@ const PERMIT_DAYS = 365;
 export function Authorise({onDone}: {onDone?: () => void}) {
   const {address} = useAccount();
   const chainId = useChainId();
-  const {standing: STANDING_ADDRESS, demoToken: DEMO_TOKEN_ADDRESS, supported} = useDeployment();
+  const {standing: STANDING_ADDRESS, demoToken: DEMO_TOKEN_ADDRESS, supported, deployment} = useDeployment();
   const standingContract = useStandingContract();
 
   const [merchant, setMerchant] = useState("");
@@ -48,6 +48,12 @@ export function Authorise({onDone}: {onDone?: () => void}) {
   const {writeContract, busy: txBusy, error: writeError} = useTx();
   const {signTypedDataAsync, isPending: signing} = useSignTypedData();
   const busy = txBusy || signing;
+
+  // The faucet token is mintable from step 1, but fees are not. A wallet with
+  // no native balance can read this page and do nothing on it, so say so
+  // rather than letting every button fail in the wallet.
+  const gas = useBalance({address});
+  const needsGas = gas.data !== undefined && gas.data.value === 0n;
 
   const balance = useReadContract({
     address: DEMO_TOKEN_ADDRESS,
@@ -132,6 +138,32 @@ export function Authorise({onDone}: {onDone?: () => void}) {
           Standing draws against and it expires on its own, which is a kill switch separate from revoking the
           mandate.
         </p>
+
+        {needsGas ? (
+          <div
+            className="mt-5 rounded-lg border px-4 py-3 text-[13px]"
+            style={{borderColor: "var(--color-warn)", color: "var(--color-warn)"}}
+          >
+            This wallet has no {gas.data?.symbol ?? "ETH"} for fees, so none of the steps below will send.
+            The test dollars in step 1 are free and mintable by anyone; gas is not.
+            {deployment?.faucet ? (
+              <>
+                {" "}
+                <a
+                  href={deployment.faucet}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline decoration-dotted underline-offset-4"
+                >
+                  Get some here
+                </a>
+                .
+              </>
+            ) : (
+              " Request some from the network's faucet first."
+            )}
+          </div>
+        ) : null}
 
         <ol className="mt-5 space-y-3">
           <Step n={1} label="Get test dollars" done={funded} detail={`balance ${formatAmount(balance.data)} dUSDC`}>

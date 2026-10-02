@@ -19,6 +19,9 @@ export type Deployment = {
   /// blocks for a contract deployed last week is a query no endpoint will
   /// serve.
   deployedAt: bigint;
+  /// Where to get gas, when one is published. The faucet token is mintable
+  /// from the app, but native ETH for fees cannot be.
+  faucet?: string;
 };
 
 /*
@@ -37,6 +40,7 @@ export const DEPLOYMENTS: Record<number, Deployment> = {
     explorer: "https://sepolia.arbiscan.io",
     label: "Arbitrum Sepolia",
     deployedAt: 314_840_104n,
+    faucet: "https://www.alchemy.com/faucets/arbitrum-sepolia",
   },
   [robinhoodTestnet.id]: {
     standing: "0x5719cd77c190420Ec38DC6dbea6Fc19D529Ad4E7",
