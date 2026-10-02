@@ -359,6 +359,47 @@ Stated deliberately, because scope honesty scores better than feature sprawl.
 - Fiat on and off ramps
 - ERC-7579 module (roadmap, not v1)
 
+### Early release, designed and deliberately not shipped
+
+A payer who is satisfied before the window closes has no reason to make the
+merchant wait. The window exists to protect the payer, so waiting it out serves
+nobody once the payer is happy, and an early release would attack the merchant's
+main objection directly: a merchant with contented customers could be paid in
+minutes rather than days, without any change to its tier.
+
+Nothing in v1 permits it. `_finalizeHold` reverts with `StillLocked` while the
+window is open, and no path bypasses that.
+
+**The reason it is not shipped is coercion, not effort.**
+
+A merchant can condition service on it: press release or we do not ship. For a
+payer who actually needs the service that nullifies the window entirely, which is
+the same shape as a waive-your-chargeback-rights clause. Consumer protection law
+tends to make such rights non-waivable for exactly this reason: a right that can
+be pressured out of someone is not a right.
+
+It compounds if an early release counts toward the merchant's window tier, because
+then every merchant has a direct financial incentive to apply that pressure to
+every customer, and the tiers stop measuring what they claim to measure.
+
+**The fix is asymmetric accounting.** An early release should credit the payer's
+standing, since the payer genuinely settled the value cleanly, and should *not*
+count toward the merchant's tier progression. That leaves the benefit with the
+payer who chose it and removes the merchant's reason to lean on anyone. A merchant
+still gets its money sooner, which is the point, but it cannot farm pressure into
+a shorter window for everybody else.
+
+Two further details a real implementation needs. The release has to be
+payer-only, like reversal and unlike finalize, since a permissionless early
+release would let anyone hand a merchant money the payer was still considering.
+And it must be irreversible once called, which means the UI has to treat it as a
+confirmation rather than a button, because it is the payer voluntarily destroying
+their own remedy.
+
+Worth building after the buildathon. Worth not building during one, because it
+adds a money-moving path to a verified contract for a convenience, and the
+incentive question above deserves a considered answer rather than a fast one.
+
 ---
 
 ## 15. Open questions
