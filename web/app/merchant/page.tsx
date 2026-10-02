@@ -4,7 +4,7 @@ import {useState} from "react";
 import {useAccount, useReadContracts} from "wagmi";
 
 import {NotConnected, WrongChain} from "@/components/States";
-import {Button, Chip, Empty, Field, Input, Section, Stat} from "@/components/ui";
+import {Button, Chip, Empty, Failed, Field, Input, Section, Stat} from "@/components/ui";
 import {
   CHARGE_BLOCK,
   HOLD_STATUS,
@@ -75,7 +75,9 @@ export default function MerchantPage() {
       </Section>
 
       <Section eyebrow="MANDATES" title="Charge a customer">
-        {rows.length === 0 ? (
+        {mandates.isError ? (
+          <Failed error={mandates.error} what="mandates naming you" />
+        ) : rows.length === 0 ? (
           <Empty>
             No mandates name you yet. A payer signs terms offchain and anyone may submit them, so a mandate
             usually arrives from your own backend.
@@ -135,7 +137,9 @@ export default function MerchantPage() {
           </span>
         }
       >
-        {held.length === 0 ? (
+        {holds.isError ? (
+          <Failed error={holds.error} what="your escrow" />
+        ) : held.length === 0 ? (
           <Empty>Nothing in escrow. Charges appear here until their window closes.</Empty>
         ) : (
           <div className="panel overflow-hidden">

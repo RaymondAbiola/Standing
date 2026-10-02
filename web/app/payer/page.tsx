@@ -2,7 +2,7 @@
 
 import {useAccount} from "wagmi";
 
-import {Button, Chip, Empty, Section, Stat} from "@/components/ui";
+import {Button, Chip, Empty, Failed, Section, Stat} from "@/components/ui";
 import {HOLD_STATUS, REVERSAL_BLOCK, formatAmount, formatDuration, shortAddress} from "@/lib/format";
 import {useHolds, useMandates, useStanding, useStandingContract} from "@/lib/hooks";
 import {useTx} from "@/lib/useTx";
@@ -81,7 +81,9 @@ export default function PayerPage() {
           </span>
         }
       >
-        {open.length === 0 ? (
+        {holds.isError ? (
+          <Failed error={holds.error} what="your holds" />
+        ) : open.length === 0 ? (
           <Empty>No charge is currently held. A merchant charge will appear here with its countdown.</Empty>
         ) : (
           <div className="panel overflow-hidden">
@@ -130,7 +132,9 @@ export default function PayerPage() {
           </Button>
         }
       >
-        {(mandates.data ?? []).length === 0 ? (
+        {mandates.isError ? (
+          <Failed error={mandates.error} what="your mandates" />
+        ) : (mandates.data ?? []).length === 0 ? (
           <Empty>No mandates yet. A merchant creates one from a set of terms you have signed.</Empty>
         ) : (
           <div className="panel overflow-hidden">

@@ -146,6 +146,24 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   );
 }
 
+/// A failed read must not look like an absence of data.
+///
+/// Showing the empty state on error is how a broken RPC query reads as "you
+/// have no mandates", which is both wrong and impossible to debug from the
+/// screen. It already happened once: a log query the endpoint rejected
+/// outright rendered as an empty list.
+export function Failed({error, what}: {error: unknown; what: string}) {
+  const message = error instanceof Error ? error.message.split("\n")[0] : String(error);
+  return (
+    <div className="panel px-4 py-5 text-[13px]" style={{color: "var(--color-warn)"}}>
+      <p>Could not load {what}.</p>
+      <p className="num mt-2 break-all text-[11px]" style={{color: "var(--muted)"}}>
+        {message}
+      </p>
+    </div>
+  );
+}
+
 export function Empty({children}: {children: React.ReactNode}) {
   return (
     <div className="panel px-4 py-10 text-center text-[13px]" style={{color: "var(--muted)"}}>

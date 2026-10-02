@@ -11,6 +11,14 @@ export type Deployment = {
   demoToken: `0x${string}`;
   explorer: string;
   label: string;
+  /// Block the contracts were deployed in.
+  ///
+  /// Log queries start here rather than at `earliest`. Public RPCs reject the
+  /// named tag outright ("expected fromBlock to be a hex string starting with
+  /// 0x"), and even where they accept it, scanning three hundred million
+  /// blocks for a contract deployed last week is a query no endpoint will
+  /// serve.
+  deployedAt: bigint;
 };
 
 /*
@@ -28,12 +36,14 @@ export const DEPLOYMENTS: Record<number, Deployment> = {
     demoToken: "0xa46c8271C5344a21932ebea331DD8086189986DF",
     explorer: "https://sepolia.arbiscan.io",
     label: "Arbitrum Sepolia",
+    deployedAt: 313_791_936n,
   },
   [robinhoodTestnet.id]: {
     standing: "0x3D30B84664E33CE51015a6B310544F45d63aA5D3",
     demoToken: "0xfa820CB11e871eB05334d0f9567F7804c68CdB98",
     explorer: "https://explorer.testnet.chain.robinhood.com",
     label: "Robinhood Chain Testnet",
+    deployedAt: 125_950_793n,
   },
 };
 
@@ -53,6 +63,7 @@ export function useDeployment(): {
   supported: boolean;
   standing: `0x${string}`;
   demoToken: `0x${string}`;
+  deployedAt: bigint;
 } {
   const {chainId} = useAccount();
   const deployment = chainId ? DEPLOYMENTS[chainId] : undefined;
@@ -63,5 +74,6 @@ export function useDeployment(): {
     supported: Boolean(deployment),
     standing: deployment?.standing ?? ZERO,
     demoToken: deployment?.demoToken ?? ZERO,
+    deployedAt: deployment?.deployedAt ?? 0n,
   };
 }

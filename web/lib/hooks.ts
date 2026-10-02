@@ -34,9 +34,10 @@ export type MandateRow = {
 export function useMandates(role: "payer" | "merchant", who: `0x${string}` | undefined) {
   const client = usePublicClient();
   const {address: standing, enabled} = useStandingContract();
+  const {deployedAt} = useDeployment();
 
   return useQuery({
-    queryKey: ["mandates", role, who, standing],
+    queryKey: ["mandates", role, who, standing, deployedAt.toString()],
     enabled: Boolean(client && who && enabled),
     queryFn: async (): Promise<MandateRow[]> => {
       if (!client || !who) return [];
@@ -45,7 +46,7 @@ export function useMandates(role: "payer" | "merchant", who: `0x${string}` | und
         address: standing,
         event: MANDATE_CREATED,
         args: role === "payer" ? {payer: who} : {merchant: who},
-        fromBlock: "earliest",
+        fromBlock: deployedAt,
         toBlock: "latest",
       });
 
