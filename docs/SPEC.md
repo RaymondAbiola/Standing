@@ -151,7 +151,7 @@ Standing serves recurring prepaid billing. It is not a general dispute layer and
 
 **Prize is bounded.** The merchant cuts off service the moment a reversal lands, so the attacker nets exactly one cycle per address. This is economically identical to free-trial abuse, which every SaaS company already prices into its margins.
 
-**Vesting closes it.** A fresh address holds no reversal right. Unlocking one requires paying honestly for N cycles first, so the merchant is net positive on every attempt.
+**Vesting closes it.** A fresh address holds no reversal right. Unlocking one requires three clean settlements first, so the merchant is net positive on every attempt.
 
 **Laundering is closed by the value ceiling.** Cheap history cannot unlock expensive theft.
 
@@ -165,16 +165,86 @@ Optional business verification in exchange for a shorter window costs real custo
 
 This is not eliminated. Any permissionless system with free identities has a fraud floor. The achievable goal is narrower: make the attack unprofitable rather than impossible, and bound merchant loss per attempt to one capped cycle. Vesting does the first, service cutoff does the second.
 
-### Other surfaces to cover in tests
+### Aggregate reversal exposure
 
-- Mandate replay after revocation
-- Double finalize, and reverse after window close
-- Charge before `minInterval` elapses
-- Charge above cap, and charge after mandate expiry
-- Permit2 allowance expiry mid-cycle
-- Escrow accounting: contract balance must always equal the sum of open holds plus accrued fees
-- Reentrancy on finalize and reverse
-- Fee-on-transfer and rebasing tokens: explicitly unsupported in v1, reject at mandate creation
+The ceiling caps a single reversal, not a payer's total. A payer vested with a
+ceiling of C can reverse any number of separate holds worth up to C each, provided
+every one is still inside its window.
+
+What bounds that is the cadence floor the payer signed. The number of holds a
+merchant can have open at once is roughly `window / minInterval`, so the worst
+case a merchant is exposed to is:
+
+```
+aggregate exposure  =  ceiling  x  (window / minInterval)
+```
+
+| `minInterval` | Window | Holds open at once | Exposure at a 30.00 ceiling |
+|---|---|---|---|
+| 30 days | 5 days | 1 | 30.00 |
+| 7 days | 5 days | 1 | 30.00 |
+| 1 day | 5 days | 5 | 150.00 |
+| 1 hour | 5 days | 120 | 3,600.00 |
+
+For the case Standing is built for, a monthly subscription, the interval exceeds
+the window and exactly one hold is ever open, so the ceiling means what it says.
+The gap opens for high-frequency billing against a long window.
+
+Two things blunt it and neither closes it. A merchant chooses whether to accept a
+mandate at all, and `setAcceptancePolicy` lets it refuse payers it does not like,
+so an absurd interval is a merchant's own decision. And reversals dispersed across
+merchants suspend the right, though that does nothing for a single merchant being
+drained.
+
+**Not fixed in v1, and stated rather than hidden.** The proper fix is a rolling cap
+on reversed value per unit time, alongside the per-reversal ceiling, so that
+aggregate exposure stops scaling with hold count. That is a mechanism change, not a
+parameter change, and it belongs after the buildathon.
+
+The practical mitigation today is advice rather than code: a merchant should set
+`minInterval` no shorter than its own hold window. At that point the two bounds
+coincide and exposure is one hold.
+
+### The single-merchant reverser
+
+A payer who only ever reverses against one merchant never trips suspension, because
+the dispersion condition deliberately ignores a single counterparty. Reversals
+concentrated on one merchant are evidence about that merchant, and reading them as
+payer abuse would punish the customers of a broken business.
+
+The bound here is not onchain. The merchant withdraws service on the first reversal,
+reversal history is public before a merchant accepts a mandate, and
+`setAcceptancePolicy` declines the next one. Covered by
+`test_singleMerchantRepeatReversalIsNotSuspendedOnchain`, which asserts the ceiling
+stays frozen while this happens, since reversed value never counts as clean.
+
+### What revokeAll does not do
+
+`revokeAll` bumps the payer's epoch, which kills every outstanding mandate and stops
+all future charges. It moves no money. Holds copy payer, merchant, token and amount
+at charge time, and nothing in the reversal or settlement path reads the mandate
+epoch, so funds already in escrow settle on the terms in force when they were taken.
+
+That asymmetry is deliberate. A revocation that clawed back money already pulled
+would let a payer take delivery and then empty escrow with one transaction, which is
+the free option the whole standing mechanism exists to price. Covered by
+`test_revokeMidWindowLeavesHoldIntact` and `test_revokeMidWindowStillAllowsReversal`:
+a revoked mandate's open hold still settles, and the payer still keeps whatever
+reversal right they had earned on it.
+
+### Surfaces covered by tests
+
+155 tests across eight suites, plus seven invariant properties holding over roughly
+33,000 random call sequences. The suites worth naming:
+
+- `Sybil.t.sol` measures what the churn-and-claw attack actually yields rather than
+  asserting it reverts
+- `StandingBook.t.sol` pins every threshold boundary, including that exactly 20
+  percent is tolerated and 30 percent is not
+- `Escrow.t.sol` closes the hold state machine in both directions, since every gap
+  in it is a double spend
+- The invariant suite asserts solvency, token conservation, and that standing never
+  drifts from settlements
 
 ---
 
