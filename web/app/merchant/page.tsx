@@ -50,6 +50,15 @@ export default function MerchantPage() {
     query: {enabled: rows.length > 0},
   });
 
+  // The contract refuses a cap with no threshold, because the cap only binds
+  // below the threshold and would silently do nothing. Catch it here too: a
+  // reverting transaction surfaces in the wallet as a funding error, since a
+  // failed gas estimate falls back to an enormous limit, which is a confusing
+  // way to learn you mistyped a policy.
+  const capAmount = parseAmount(reversalCap || "0");
+  const thresholdAmount = parseAmount(trustThreshold || "0");
+  const capWithoutThreshold = capAmount > 0n && thresholdAmount === 0n;
+
   const held = (holds.data ?? []).filter((h) => h.status === 1);
   const settled = (holds.data ?? []).filter((h) => h.status === 2);
   const revenue = settled.reduce((acc, h) => acc + h.amount, 0n);
@@ -263,7 +272,7 @@ export default function MerchantPage() {
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <Button
               variant="primary"
-              disabled={busy}
+              disabled={busy || capWithoutThreshold}
               onClick={() =>
                 writeContract({
                   ...standingContract,
@@ -272,8 +281,8 @@ export default function MerchantPage() {
                     Number(minClean || 0),
                     Number(maxReversals || 0),
                     refuseSuspended,
-                    parseAmount(reversalCap || "0"),
-                    parseAmount(trustThreshold || "0"),
+                    capAmount,
+                    thresholdAmount,
                   ],
                 })
               }
@@ -288,7 +297,9 @@ export default function MerchantPage() {
             >
               Accept everyone
             </Button>
-            {standing.policy?.set ? (
+            {capWithoutThreshold ? (
+              <Chip tone="warn">a cap needs a threshold, or it would never apply</Chip>
+            ) : standing.policy?.set ? (
               <Chip tone="good">
                 live: min {standing.policy.minCleanSettlements}, max {standing.policy.maxReversalsInWindow}
                 {standing.policy.trustThreshold > 0n
