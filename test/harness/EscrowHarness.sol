@@ -28,6 +28,7 @@ contract EscrowHarness is Escrow {
         uint256 amount,
         uint64 window
     ) external returns (uint256) {
-        return _openHold(mandateId, payer, merchant, token, amount, window);
+        // No cap: the escrow suite tests the vault, not merchant policy.
+        return _openHold(mandateId, payer, merchant, token, amount, window, 0, 0);
     }
 }

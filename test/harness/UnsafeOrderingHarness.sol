@@ -22,7 +22,7 @@ contract UnsafeOrderingHarness is MandateRegistry, Permit2Puller, Escrow {
         MandateRecord storage r = _requireChargeable(id, amount);
 
         _pullExact(r.terms.token, r.terms.payer, amount);
-        holdId = _openHold(id, r.terms.payer, r.terms.merchant, r.terms.token, amount, 3 days);
+        holdId = _openHold(id, r.terms.payer, r.terms.merchant, r.terms.token, amount, 3 days, 0, 0);
 
         _recordCharge(r);
     }

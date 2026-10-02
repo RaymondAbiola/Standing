@@ -7,8 +7,16 @@ import {StandingBook} from "../../src/base/StandingBook.sol";
 /// can be driven directly instead of through charges and holds. Long
 /// histories cost a couple of calls here and a hundred through the full path.
 contract StandingBookHarness is StandingBook {
+    address public constant DEFAULT_MERCHANT = address(0xDEFA);
+
+    /// Defaults the counterparty so existing tests of the global counters stay
+    /// unchanged, with an explicit variant for the per-pair figure.
     function settle(address payer, uint256 amount) external {
-        _recordCleanSettlement(payer, amount);
+        _recordCleanSettlement(payer, DEFAULT_MERCHANT, amount);
+    }
+
+    function settleWith(address payer, address merchant, uint256 amount) external {
+        _recordCleanSettlement(payer, merchant, amount);
     }
 
     function reverseAgainst(address payer, address merchant) external {

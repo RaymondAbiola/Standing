@@ -27,6 +27,15 @@ struct Hold {
     uint64 unlockAt;
     HoldStatus status;
     uint16 feeBps;
+    /// The merchant's reversal terms as they stood when the charge was taken.
+    ///
+    /// Snapshotted for the same reason as `feeBps`: a merchant must not be able
+    /// to take the money and then tighten its policy to strip the payer's
+    /// remedy on a charge already in escrow. The payer's own progress still
+    /// counts live, so settling more with this merchant during the window can
+    /// still lift the cap. Only the merchant's side is frozen.
+    uint96 reversalCap;
+    uint96 trustThreshold;
 }
 
 /// The vault side of the window: funds land here on a charge and leave only
@@ -251,7 +260,9 @@ abstract contract Escrow is Ownable2Step {
         address merchant,
         address token,
         uint256 amount,
-        uint64 window
+        uint64 window,
+        uint96 reversalCap,
+        uint96 trustThreshold
     ) internal returns (uint256 holdId) {
         if (window > MAX_WINDOW) revert WindowTooLong(MAX_WINDOW);
 
@@ -266,7 +277,9 @@ abstract contract Escrow is Ownable2Step {
             amount: amount,
             unlockAt: unlockAt,
             status: HoldStatus.Held,
-            feeBps: _feeBps
+            feeBps: _feeBps,
+            reversalCap: reversalCap,
+            trustThreshold: trustThreshold
         });
 
         _totalHeld[token] += amount;

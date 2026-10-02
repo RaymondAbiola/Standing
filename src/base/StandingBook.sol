@@ -89,6 +89,15 @@ abstract contract StandingBook {
     /// per merchant rather than once per reversal.
     mapping(address payer => mapping(address merchant => bool seen)) private _reversedAgainst;
 
+    /// Value a payer has settled cleanly with each merchant.
+    ///
+    /// The global `cumulativeCleanSettled` says nothing about counterparties,
+    /// which makes it forgeable: a payer can settle to an address it controls
+    /// and build a ceiling for the price of gas. This per-pair figure is what
+    /// lets a merchant decide how much of an imported ceiling to honour before
+    /// the payer has settled anything with it.
+    mapping(address payer => mapping(address merchant => uint256 value)) private _cleanSettledWith;
+
     function standingOf(address payer) external view returns (PayerStanding memory) {
         return _standing[payer];
     }
@@ -132,6 +141,11 @@ abstract contract StandingBook {
         return s.cleanSettlements >= s.restoreAtClean ? 0 : s.restoreAtClean - s.cleanSettlements;
     }
 
+    /// Value this payer has settled cleanly with this merchant specifically.
+    function cleanSettledWith(address payer, address merchant) public view returns (uint256) {
+        return _cleanSettledWith[payer][merchant];
+    }
+
     function cleanSettlementsOf(address payer) public view returns (uint32) {
         return _standing[payer].cleanSettlements;
     }
@@ -156,11 +170,12 @@ abstract contract StandingBook {
         return _reversedAgainst[payer][merchant];
     }
 
-    function _recordCleanSettlement(address payer, uint256 amount) internal {
+    function _recordCleanSettlement(address payer, address merchant, uint256 amount) internal {
         PayerStanding storage s = _standing[payer];
 
         s.cumulativeCleanSettled += amount;
         s.cleanSettlements += 1;
+        _cleanSettledWith[payer][merchant] += amount;
         _pushOutcome(s, false);
 
         emit StandingSettled(payer, amount, s.cumulativeCleanSettled);

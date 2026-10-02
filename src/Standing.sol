@@ -22,6 +22,7 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook, Merch
     error NotVested(uint32 cleanSettlements, uint32 required);
     error ReversalSuspended(uint32 cleanCyclesOwed);
     error AboveReversalCeiling(uint256 ceiling);
+    error AboveMerchantCap(uint256 cap, uint256 settledWithMerchant, uint256 trustThreshold);
 
     event ReversalSuspensionApplied(address indexed payer, uint32 restoreAtClean);
 
@@ -97,8 +98,11 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook, Merch
         address merchant = r.terms.merchant;
         uint64 window = _windowFor(r.terms.chargeKind, merchant);
 
+        AcceptancePolicy memory policy = acceptancePolicyOf(merchant);
+
         _pullExact(token, payer, amount);
-        holdId = _openHold(id, payer, merchant, token, amount, window);
+        holdId =
+            _openHold(id, payer, merchant, token, amount, window, policy.reversalCap, policy.trustThreshold);
 
         emit Charged(id, merchant, payer, holdId, token, amount, r.chargeCount);
     }
@@ -117,7 +121,7 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook, Merch
         address merchant = _peekHold(holdId).merchant;
         (address payer, uint256 amount) = _finalizeHold(holdId);
 
-        _recordCleanSettlement(payer, amount);
+        _recordCleanSettlement(payer, merchant, amount);
         _recordMerchantSettlement(merchant);
     }
 
@@ -128,6 +132,43 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook, Merch
     /// a stranger's attempt still fails on `NotHoldPayer` inside
     /// `_reverseHold` rather than on a ceiling that is not theirs.
     ///
+    /// What a reversal against this hold is actually capped at.
+    ///
+    /// Reads the merchant's terms from the hold rather than from the live
+    /// policy, so tightening a policy after charging cannot reach money already
+    /// in escrow. The payer's settled-with figure is read live, so the payer can
+    /// still clear the cap during the window by settling more.
+    function effectiveCeilingForHold(uint256 holdId) public view returns (uint256) {
+        Hold storage h = _peekHold(holdId);
+        uint256 global = reversalCeiling(h.payer);
+
+        if (h.trustThreshold == 0) return global;
+        if (cleanSettledWith(h.payer, h.merchant) >= h.trustThreshold) return global;
+
+        uint256 cap = uint256(h.reversalCap);
+        return cap < global ? cap : global;
+    }
+
+    /// What a charge taken right now would be capped at. A preview for the
+    /// frontend; the binding figure once a hold exists is the one above.
+    ///
+    /// A payer's global ceiling says nothing about who it settled with, so it
+    /// can be manufactured by settling to an address the payer controls. A
+    /// merchant therefore states how much of a stranger's imported ceiling it
+    /// will honour, and the cap lifts once the payer has settled enough with
+    /// that merchant specifically. Portable standing still gets a payer in the
+    /// door; a forged one cannot be spent beyond what the merchant allowed.
+    function effectiveReversalCeiling(address payer, address merchant) public view returns (uint256) {
+        uint256 global = reversalCeiling(payer);
+
+        AcceptancePolicy memory p = acceptancePolicyOf(merchant);
+        if (!p.set || p.trustThreshold == 0) return global;
+        if (cleanSettledWith(payer, merchant) >= p.trustThreshold) return global;
+
+        uint256 cap = uint256(p.reversalCap);
+        return cap < global ? cap : global;
+    }
+
     /// Every condition standing between a hold and a reversal, in the order a
     /// payer most needs to hear them. Non-reverting, and the same predicate
     /// the guard below uses, so the frontend can never show a reversal as
@@ -141,6 +182,9 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook, Merch
         if (!isVested(h.payer)) return ReversalBlock.NotVested;
         if (isSuspended(h.payer)) return ReversalBlock.Suspended;
         if (h.amount > reversalCeiling(h.payer)) return ReversalBlock.AboveCeiling;
+        if (h.amount > effectiveCeilingForHold(holdId)) {
+            return ReversalBlock.AboveMerchantCap;
+        }
 
         return ReversalBlock.None;
     }
@@ -164,6 +208,13 @@ contract Standing is MandateRegistry, Permit2Puller, Escrow, StandingBook, Merch
         }
         if (b == ReversalBlock.Suspended) revert ReversalSuspended(cyclesUntilRestored(payer));
         if (b == ReversalBlock.AboveCeiling) revert AboveReversalCeiling(reversalCeiling(payer));
+        if (b == ReversalBlock.AboveMerchantCap) {
+            revert AboveMerchantCap(
+                effectiveCeilingForHold(holdId),
+                cleanSettledWith(payer, h.merchant),
+                uint256(h.trustThreshold)
+            );
+        }
 
         address merchant = _executeReversal(holdId);
         _recordReversal(payer, merchant);

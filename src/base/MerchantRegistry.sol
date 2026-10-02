@@ -9,16 +9,35 @@ enum AcceptanceBlock {
     Suspended
 }
 
-/// What a merchant demands of a payer before accepting a mandate.
+/// What a merchant demands of a payer, and how much of an imported ceiling it
+/// will honour.
 ///
 /// `set` exists because an unset struct is all zeros, and "requires zero clean
 /// settlements, allows zero reversals" would refuse every payer who has ever
 /// reversed anything. Absent policy has to mean open to everyone.
+///
+/// The two cap fields answer a problem the global ceiling cannot. A payer's
+/// `cumulativeCleanSettled` records value but not counterparties, so a payer
+/// can settle to an address it controls and manufacture a ceiling for the
+/// price of gas. Rather than make ceilings per-merchant, which would close the
+/// hole by destroying portable reputation entirely, a merchant states how much
+/// it will let a stranger reverse before that stranger has settled anything
+/// with it:
+///
+///   until you have settled `trustThreshold` with me, your reversal right
+///   here is capped at `reversalCap`, whatever your global ceiling says
+///
+/// A `trustThreshold` of zero means the global ceiling applies immediately,
+/// which keeps the permissive default.
+///
+/// All five fields share one slot: 1 + 1 + 8 + 32 + 96 + 96 = 234 bits.
 struct AcceptancePolicy {
     bool set;
     bool refuseSuspended;
     uint8 maxReversalsInWindow;
     uint32 minCleanSettlements;
+    uint96 reversalCap;
+    uint96 trustThreshold;
 }
 
 /// What a merchant has built up. The mirror of payer standing, read in the
@@ -64,8 +83,18 @@ abstract contract MerchantRegistry {
     /// Settlements before that rate is read as meaningful.
     uint32 public constant MERCHANT_MIN_SAMPLE = 20;
 
+    /// A cap with no threshold would never bind, because the cap only applies
+    /// while the payer is below the threshold. Silently accepting it would let
+    /// a merchant believe it was protected when it was not.
+    error CapWithoutThreshold();
+
     event AcceptancePolicySet(
-        address indexed merchant, uint32 minCleanSettlements, uint8 maxReversalsInWindow, bool refuseSuspended
+        address indexed merchant,
+        uint32 minCleanSettlements,
+        uint8 maxReversalsInWindow,
+        bool refuseSuspended,
+        uint96 reversalCap,
+        uint96 trustThreshold
     );
 
     event MerchantSettled(address indexed merchant, uint32 settlements, uint64 window);
@@ -84,23 +113,43 @@ abstract contract MerchantRegistry {
     /// rule that would catch it is the same rule protecting the customers of a
     /// broken merchant. What a merchant can do is decline the mandate in the
     /// first place, reading a history it can see before it agrees to serve.
-    function setAcceptancePolicy(uint32 minCleanSettlements, uint8 maxReversalsInWindow, bool refuseSuspended)
-        external
-    {
+    ///
+    /// `reversalCap` and `trustThreshold` go further: they bound how much of a
+    /// stranger's imported ceiling this merchant will honour before that
+    /// stranger has settled anything with it. A threshold of zero keeps the
+    /// permissive default of trusting the global ceiling outright.
+    function setAcceptancePolicy(
+        uint32 minCleanSettlements,
+        uint8 maxReversalsInWindow,
+        bool refuseSuspended,
+        uint96 reversalCap,
+        uint96 trustThreshold
+    ) external {
+        if (reversalCap != 0 && trustThreshold == 0) revert CapWithoutThreshold();
+
         _policies[msg.sender] = AcceptancePolicy({
             set: true,
             refuseSuspended: refuseSuspended,
             maxReversalsInWindow: maxReversalsInWindow,
-            minCleanSettlements: minCleanSettlements
+            minCleanSettlements: minCleanSettlements,
+            reversalCap: reversalCap,
+            trustThreshold: trustThreshold
         });
 
-        emit AcceptancePolicySet(msg.sender, minCleanSettlements, maxReversalsInWindow, refuseSuspended);
+        emit AcceptancePolicySet(
+            msg.sender,
+            minCleanSettlements,
+            maxReversalsInWindow,
+            refuseSuspended,
+            reversalCap,
+            trustThreshold
+        );
     }
 
     /// Reverts to accepting everyone.
     function clearAcceptancePolicy() external {
         delete _policies[msg.sender];
-        emit AcceptancePolicySet(msg.sender, 0, 0, false);
+        emit AcceptancePolicySet(msg.sender, 0, 0, false, 0, 0);
     }
 
     function acceptancePolicyOf(address merchant) public view returns (AcceptancePolicy memory) {

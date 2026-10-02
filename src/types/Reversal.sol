@@ -13,5 +13,6 @@ enum ReversalBlock {
     WindowClosed,
     NotVested,
     Suspended,
-    AboveCeiling
+    AboveCeiling,
+    AboveMerchantCap
 }
