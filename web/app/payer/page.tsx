@@ -87,7 +87,7 @@ export default function PayerPage() {
         eyebrow="HOLDS"
         title="Charges waiting on you"
         right={
-          <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+          <span className="num text-[13px]" style={{color: "var(--muted)"}}>
             {formatAmount(inEscrow)} in escrow &middot; {reversibleNow} reversible now
           </span>
         }
@@ -103,11 +103,11 @@ export default function PayerPage() {
               const canReverse = code === 0;
               return (
                 <div key={h.holdId.toString()} className="row-line flex flex-wrap items-center gap-3 px-4 py-3">
-                  <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+                  <span className="num text-[13px]" style={{color: "var(--muted)"}}>
                     #{h.holdId.toString()}
                   </span>
-                  <span className="num min-w-[86px] text-[15px] font-medium">{formatAmount(h.amount)}</span>
-                  <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+                  <span className="num min-w-[86px] text-[17px] font-medium">{formatAmount(h.amount)}</span>
+                  <span className="num text-[13px]" style={{color: "var(--muted)"}}>
                     to {shortAddress(h.merchant)}
                   </span>
                   <Countdown unlockAt={h.unlockAt} />
@@ -135,7 +135,7 @@ export default function PayerPage() {
         title="Who can charge you"
         right={
           <div className="flex items-center gap-4">
-            <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+            <span className="num text-[13px]" style={{color: "var(--muted)"}}>
               {live.length} live across {merchantCount}{" "}
               {merchantCount === 1 ? "merchant" : "merchants"} &middot; max{" "}
               {formatAmount(maxPerRound)} per round
@@ -158,20 +158,20 @@ export default function PayerPage() {
           <div className="panel overflow-hidden">
             {(mandates.data ?? []).map((m) => (
               <div key={m.id} className="row-line flex flex-wrap items-center gap-3 px-4 py-3">
-                <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+                <span className="num text-[13px]" style={{color: "var(--muted)"}}>
                   {shortAddress(m.id)}
                 </span>
-                <span className="num text-[13px]">{shortAddress(m.merchant)}</span>
+                <span className="num text-[15px]">{shortAddress(m.merchant)}</span>
                 <Chip tone={m.chargeKind === 1 ? "plain" : "good"}>
                   {m.chargeKind === 1 ? "postpaid" : "prepaid"}
                 </Chip>
                 {m.status === 2 ? <Chip tone="warn">revoked</Chip> : null}
-                <span className="num text-[13px]" style={{color: "var(--muted)"}}>
+                <span className="num text-[15px]" style={{color: "var(--muted)"}}>
                   max {formatAmount(m.maxAmount)} / {formatDuration(m.minInterval)}
                 </span>
                 <div className="ml-auto">
                   {m.status === 2 ? (
-                    <span className="text-[12px]" style={{color: "var(--muted)"}}>
+                    <span className="text-[13px]" style={{color: "var(--muted)"}}>
                       no longer chargeable
                     </span>
                   ) : (
@@ -203,11 +203,11 @@ export default function PayerPage() {
               .filter((h) => h.status > 1)
               .map((h) => (
                 <div key={h.holdId.toString()} className="row-line flex items-center gap-3 px-4 py-3">
-                  <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+                  <span className="num text-[13px]" style={{color: "var(--muted)"}}>
                     #{h.holdId.toString()}
                   </span>
-                  <span className="num text-[14px]">{formatAmount(h.amount)}</span>
-                  <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+                  <span className="num text-[16px]">{formatAmount(h.amount)}</span>
+                  <span className="num text-[13px]" style={{color: "var(--muted)"}}>
                     {shortAddress(h.merchant)}
                   </span>
                   <div className="ml-auto">

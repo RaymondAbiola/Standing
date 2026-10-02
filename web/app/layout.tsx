@@ -21,13 +21,13 @@ export default function RootLayout({children}: {children: React.ReactNode}) {
         <Providers>
           <SiteNav />
           <main>{children}</main>
-          <footer className="mx-auto max-w-[1000px] px-4 pb-12 pt-14">
+          <footer className="shell pb-12 pt-14">
             <div
-              className="flex flex-wrap items-center justify-between gap-4 border-t pt-6 text-[13px]"
+              className="flex flex-wrap items-center justify-between gap-4 border-t pt-6 text-[15px]"
               style={{borderColor: "var(--line)", color: "var(--muted)"}}
             >
               <span
-                className="flex items-center gap-2 text-[15px] font-semibold tracking-tight"
+                className="flex items-center gap-2 text-[17px] font-semibold tracking-tight"
                 style={{color: "var(--ink)"}}
               >
                 <Mark size={20} />

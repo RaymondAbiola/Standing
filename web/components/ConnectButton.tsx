@@ -37,7 +37,7 @@ export function ConnectButton() {
   return (
     <Button onClick={() => disconnect()}>
       <span className="num">{shortAddress(address)}</span>
-      <span className="text-[11px]" style={{color: "var(--muted)"}}>
+      <span className="text-[12px]" style={{color: "var(--muted)"}}>
         {chainId ? CHAIN_LABELS[chainId] : ""}
       </span>
     </Button>

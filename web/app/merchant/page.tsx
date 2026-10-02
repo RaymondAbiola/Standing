@@ -96,7 +96,7 @@ export default function MerchantPage() {
         title="Charge a customer"
         right={
           inactive > 0 ? (
-            <span className="text-[12px]" style={{color: "var(--muted)"}}>
+            <span className="text-[13px]" style={{color: "var(--muted)"}}>
               {inactive} revoked, hidden
             </span>
           ) : undefined
@@ -118,14 +118,14 @@ export default function MerchantPage() {
               return (
                 <div key={m.id} className="row-line flex flex-wrap items-center gap-3 px-4 py-3">
                   <div className="min-w-[190px]">
-                    <p className="flex items-center gap-2 text-[13px]">
+                    <p className="flex items-center gap-2 text-[15px]">
                       <span className="num">{shortAddress(m.payer)}</span>
                       <Chip tone={m.chargeKind === 1 ? "plain" : "good"}>
                         {m.chargeKind === 1 ? "postpaid" : "prepaid"}
                       </Chip>
                       {m.status === 2 ? <Chip tone="warn">revoked</Chip> : null}
                     </p>
-                    <p className="num text-[11px]" style={{color: "var(--muted)"}}>
+                    <p className="num text-[12px]" style={{color: "var(--muted)"}}>
                       {shortAddress(m.id)} &middot; max {formatAmount(m.maxAmount)} /{" "}
                       {formatDuration(m.minInterval)} &middot; {m.chargeCount} charged
                     </p>
@@ -166,7 +166,7 @@ export default function MerchantPage() {
         eyebrow="ESCROW"
         title="Waiting to settle"
         right={
-          <span className="text-[12px]" style={{color: "var(--muted)"}}>
+          <span className="text-[13px]" style={{color: "var(--muted)"}}>
             Anyone can settle a matured hold
           </span>
         }
@@ -182,11 +182,11 @@ export default function MerchantPage() {
               const matured = left <= 0n;
               return (
                 <div key={h.holdId.toString()} className="row-line flex flex-wrap items-center gap-3 px-4 py-3">
-                  <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+                  <span className="num text-[13px]" style={{color: "var(--muted)"}}>
                     #{h.holdId.toString()}
                   </span>
-                  <span className="num min-w-[86px] text-[15px] font-medium">{formatAmount(h.amount)}</span>
-                  <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+                  <span className="num min-w-[86px] text-[17px] font-medium">{formatAmount(h.amount)}</span>
+                  <span className="num text-[13px]" style={{color: "var(--muted)"}}>
                     from {shortAddress(h.payer)}
                   </span>
                   <Chip tone={matured ? "good" : "hold"}>
@@ -212,12 +212,12 @@ export default function MerchantPage() {
 
       <Section eyebrow="ACCEPTANCE" title="Who you will serve">
         <div className="panel px-5 py-5">
-          <p className="max-w-[62ch] text-[13px] leading-relaxed" style={{color: "var(--muted)"}}>
+          <p className="max-w-[62ch] text-[15px] leading-relaxed" style={{color: "var(--muted)"}}>
             Standing cannot suspend a payer who only ever reverses against you, because the rule that would
             catch it is the same rule protecting the customers of a broken merchant. This is what you do
             instead: read a payer&apos;s history and decline the next mandate.
           </p>
-          <p className="mt-3 max-w-[62ch] text-[13px] leading-relaxed" style={{color: "var(--muted)"}}>
+          <p className="mt-3 max-w-[62ch] text-[15px] leading-relaxed" style={{color: "var(--muted)"}}>
             The cap goes further. A payer&apos;s global ceiling records value but not counterparties, so it can
             be manufactured by settling to an address they control. Below, you state how much of a
             stranger&apos;s imported ceiling you will honour before they have settled anything with you. Terms
@@ -261,7 +261,7 @@ export default function MerchantPage() {
               <button
                 type="button"
                 onClick={() => setRefuseSuspended((v) => !v)}
-                className="min-h-11 w-full rounded-lg border px-3 text-left text-[13px]"
+                className="min-h-11 w-full rounded-lg border px-3 text-left text-[15px]"
                 style={{borderColor: "var(--line)", color: "var(--ink)"}}
               >
                 {refuseSuspended ? "Refuse" : "Accept"}
@@ -322,11 +322,11 @@ export default function MerchantPage() {
               .filter((h) => h.status > 1)
               .map((h) => (
                 <div key={h.holdId.toString()} className="row-line flex items-center gap-3 px-4 py-3">
-                  <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+                  <span className="num text-[13px]" style={{color: "var(--muted)"}}>
                     #{h.holdId.toString()}
                   </span>
-                  <span className="num text-[14px]">{formatAmount(h.amount)}</span>
-                  <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+                  <span className="num text-[16px]">{formatAmount(h.amount)}</span>
+                  <span className="num text-[13px]" style={{color: "var(--muted)"}}>
                     {shortAddress(h.payer)}
                   </span>
                   <div className="ml-auto">

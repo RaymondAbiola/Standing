@@ -16,11 +16,11 @@ export function Section({
   right?: React.ReactNode;
 }) {
   return (
-    <section className="mx-auto max-w-[1000px] px-4 py-8">
+    <section className="shell py-8">
       <div className="mb-4 flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <p className="eyebrow">{eyebrow}</p>
-          {title ? <h2 className="mt-2 text-[22px] font-semibold tracking-tight">{title}</h2> : null}
+          {title ? <h2 className="mt-2 text-[26px] font-semibold tracking-tight">{title}</h2> : null}
         </div>
         {right}
       </div>
@@ -44,11 +44,11 @@ export function Stat({
   return (
     <div className="panel px-4 py-3">
       <p className="eyebrow">{label}</p>
-      <p className="num mt-2 text-[20px] font-medium" style={{color}}>
+      <p className="num mt-2 text-[24px] font-medium" style={{color}}>
         {value}
       </p>
       {hint ? (
-        <p className="mt-1 text-[12px]" style={{color: "var(--muted)"}}>
+        <p className="mt-1 text-[13px]" style={{color: "var(--muted)"}}>
           {hint}
         </p>
       ) : null}
@@ -72,7 +72,7 @@ export function Chip({
 
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium"
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium"
       style={{background: map.bg, color: map.fg}}
     >
       <span className="h-1.5 w-1.5 rounded-full" style={{background: map.dot}} />
@@ -106,7 +106,7 @@ export function Button({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 text-[13px] font-medium transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
+      className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border px-4 text-[15px] font-medium transition-opacity disabled:cursor-not-allowed disabled:opacity-40"
       style={style}
     >
       {children}
@@ -128,7 +128,7 @@ export function Field({
       <span className="eyebrow">{label}</span>
       <div className="mt-2">{children}</div>
       {hint ? (
-        <span className="mt-1 block text-[12px]" style={{color: "var(--muted)"}}>
+        <span className="mt-1 block text-[13px]" style={{color: "var(--muted)"}}>
           {hint}
         </span>
       ) : null}
@@ -140,7 +140,7 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className="num min-h-11 w-full rounded-lg border bg-transparent px-3 text-[14px] outline-none focus:border-[var(--color-mint)]"
+      className="num min-h-11 w-full rounded-lg border bg-transparent px-3 text-[16px] outline-none focus:border-[var(--color-mint)]"
       style={{borderColor: "var(--line)", color: "var(--ink)"}}
     />
   );
@@ -155,9 +155,9 @@ export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
 export function Failed({error, what}: {error: unknown; what: string}) {
   const message = error instanceof Error ? error.message.split("\n")[0] : String(error);
   return (
-    <div className="panel px-4 py-5 text-[13px]" style={{color: "var(--color-warn)"}}>
+    <div className="panel px-4 py-5 text-[15px]" style={{color: "var(--color-warn)"}}>
       <p>Could not load {what}.</p>
-      <p className="num mt-2 break-all text-[11px]" style={{color: "var(--muted)"}}>
+      <p className="num mt-2 break-all text-[12px]" style={{color: "var(--muted)"}}>
         {message}
       </p>
     </div>
@@ -166,7 +166,7 @@ export function Failed({error, what}: {error: unknown; what: string}) {
 
 export function Empty({children}: {children: React.ReactNode}) {
   return (
-    <div className="panel px-4 py-10 text-center text-[13px]" style={{color: "var(--muted)"}}>
+    <div className="panel px-4 py-10 text-center text-[15px]" style={{color: "var(--muted)"}}>
       {children}
     </div>
   );

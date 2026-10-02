@@ -133,7 +133,7 @@ export function Authorise({onDone}: {onDone?: () => void}) {
   return (
     <Section eyebrow="SET UP" title="Authorise a merchant to charge you">
       <div className="panel px-5 py-5">
-        <p className="max-w-[64ch] text-[13px] leading-relaxed" style={{color: "var(--muted)"}}>
+        <p className="max-w-[64ch] text-[15px] leading-relaxed" style={{color: "var(--muted)"}}>
           Four steps, in order. The token allowance lets Permit2 move funds; the Permit2 allowance is what
           Standing draws against and it expires on its own, which is a kill switch separate from revoking the
           mandate.
@@ -141,7 +141,7 @@ export function Authorise({onDone}: {onDone?: () => void}) {
 
         {needsGas ? (
           <div
-            className="mt-5 rounded-lg border px-4 py-3 text-[13px]"
+            className="mt-5 rounded-lg border px-4 py-3 text-[15px]"
             style={{borderColor: "var(--color-warn)", color: "var(--color-warn)"}}
           >
             <p>
@@ -273,7 +273,7 @@ export function Authorise({onDone}: {onDone?: () => void}) {
             <button
               type="button"
               onClick={() => setPostpaid((v) => !v)}
-              className="min-h-11 w-full rounded-lg border px-3 text-left text-[13px]"
+              className="min-h-11 w-full rounded-lg border px-3 text-left text-[15px]"
               style={{borderColor: "var(--line)", color: "var(--ink)"}}
             >
               {postpaid ? "Postpaid (usage)" : "Prepaid (subscription)"}
@@ -282,7 +282,7 @@ export function Authorise({onDone}: {onDone?: () => void}) {
         </div>
 
         {writeError ? (
-          <p className="mt-4 text-[12px]" style={{color: "var(--color-warn)"}}>
+          <p className="mt-4 text-[13px]" style={{color: "var(--color-warn)"}}>
             {writeError.message.split("\n")[0]}
           </p>
         ) : null}
@@ -307,7 +307,7 @@ function Step({
   return (
     <li className="flex flex-wrap items-center gap-3">
       <span
-        className="num grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px]"
+        className="num grid h-6 w-6 shrink-0 place-items-center rounded-full text-[12px]"
         style={
           done
             ? {background: "var(--color-mint-soft)", color: "var(--color-mint)"}
@@ -316,9 +316,9 @@ function Step({
       >
         {done ? "✓" : n}
       </span>
-      <span className="text-[14px]">{label}</span>
+      <span className="text-[16px]">{label}</span>
       {detail ? (
-        <span className="num text-[12px]" style={{color: "var(--muted)"}}>
+        <span className="num text-[13px]" style={{color: "var(--muted)"}}>
           {detail}
         </span>
       ) : null}

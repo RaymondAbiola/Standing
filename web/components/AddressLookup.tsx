@@ -35,7 +35,7 @@ export function AddressLookup({initial = ""}: {initial?: string}) {
           spellCheck={false}
         />
         {trimmed.length > 0 && !valid ? (
-          <p className="mt-2 text-[12px]" style={{color: "var(--color-warn)"}}>
+          <p className="mt-2 text-[13px]" style={{color: "var(--color-warn)"}}>
             That is not a 20 byte address.
           </p>
         ) : null}

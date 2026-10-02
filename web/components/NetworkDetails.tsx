@@ -34,7 +34,7 @@ export function NetworkDetails() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="text-[12px] underline decoration-dotted underline-offset-4"
+        className="text-[13px] underline decoration-dotted underline-offset-4"
         style={{color: "var(--muted)"}}
         aria-expanded={open}
       >
@@ -45,8 +45,8 @@ export function NetworkDetails() {
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {NETWORKS.map((n) => (
             <div key={n.chainId} className="panel px-4 py-3">
-              <p className="text-[13px] font-medium">{n.name}</p>
-              <dl className="mt-2 space-y-1 text-[11px]">
+              <p className="text-[15px] font-medium">{n.name}</p>
+              <dl className="mt-2 space-y-1 text-[12px]">
                 <Row label="RPC" value={n.rpc} />
                 <Row label="Chain ID" value={String(n.chainId)} />
                 <Row label="Symbol" value="ETH" />

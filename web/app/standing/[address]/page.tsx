@@ -18,7 +18,7 @@ export default function AddressPage() {
     <>
       <Section eyebrow="STANDING" title={shortAddress(address)}>
         <div className="panel px-5 py-5">
-          <p className="num break-all text-[12px]" style={{color: "var(--muted)"}}>
+          <p className="num break-all text-[13px]" style={{color: "var(--muted)"}}>
             {address}
           </p>
           <div className="mt-4">
@@ -62,7 +62,7 @@ function ChainRecord({record: r, address}: {record: AddressRecord; address: stri
           href={`${r.explorer}/address/${address}`}
           target="_blank"
           rel="noreferrer"
-          className="text-[12px] underline decoration-dotted underline-offset-4"
+          className="text-[13px] underline decoration-dotted underline-offset-4"
           style={{color: "var(--muted)"}}
         >
           explorer

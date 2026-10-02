@@ -21,7 +21,7 @@ export function SiteNav() {
       className="sticky top-0 z-40 border-b backdrop-blur"
       style={{borderColor: "var(--line)", background: "color-mix(in srgb, var(--ground) 82%, transparent)"}}
     >
-      <nav className="mx-auto flex max-w-[1000px] items-center gap-6 px-4 py-4">
+      <nav className="shell flex items-center gap-6 py-4">
         <Link
           href="/"
           className="flex shrink-0 items-center gap-2.5 text-[21px] font-semibold tracking-tight"
@@ -30,7 +30,7 @@ export function SiteNav() {
           Standing
         </Link>
 
-        <div className="flex items-center gap-4 text-[13px]">
+        <div className="flex items-center gap-4 text-[15px]">
           {LINKS.map((l) => (
             <Link
               key={l.href}

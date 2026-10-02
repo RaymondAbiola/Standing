@@ -17,7 +17,7 @@ export function WrongChain({chainId}: {chainId: number | undefined}) {
   return (
     <Section eyebrow="WRONG NETWORK" title={`Standing is not deployed on ${where}`}>
       <div className="panel px-5 py-6">
-        <p className="max-w-[60ch] text-[14px] leading-relaxed" style={{color: "var(--muted)"}}>
+        <p className="max-w-[60ch] text-[16px] leading-relaxed" style={{color: "var(--muted)"}}>
           Pick one of the two testnets it is live on. The contract addresses differ between them, so the app
           reads whichever chain your wallet is on.
         </p>
@@ -35,7 +35,7 @@ export function WrongChain({chainId}: {chainId: number | undefined}) {
         </div>
 
         {error ? (
-          <p className="mt-4 max-w-[60ch] text-[12px]" style={{color: "var(--color-warn)"}}>
+          <p className="mt-4 max-w-[60ch] text-[13px]" style={{color: "var(--color-warn)"}}>
             Your wallet refused the switch: {error.message.split("\n")[0]}. Some wallets throw on this
             request even when the network would work, so add it by hand below.
           </p>
@@ -50,7 +50,7 @@ export function WrongChain({chainId}: {chainId: number | undefined}) {
 export function NotConnected({role}: {role: "payer" | "merchant"}) {
   return (
     <Section eyebrow="CONNECT" title={`Connect a wallet to act as a ${role}`}>
-      <div className="panel px-5 py-6 text-[14px] leading-relaxed" style={{color: "var(--muted)"}}>
+      <div className="panel px-5 py-6 text-[16px] leading-relaxed" style={{color: "var(--muted)"}}>
         <p>
           Everything on this page is read from the chain against your address. Use the connect button in the
           header, on Arbitrum Sepolia.
