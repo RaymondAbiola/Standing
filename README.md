@@ -2,6 +2,8 @@
 
 **Standing orders for stablecoins, with recourse.**
 
+Live app: **https://standing-xi.vercel.app**
+
 Blockchains can only push. Every subscription runs on pull, where the payer authorizes once and the
 payee draws funds repeatedly. That mismatch is why crypto has no subscriptions without a merchant
 taking custody, and why a payer who pre-authorized a pull has no remedy short of court.
