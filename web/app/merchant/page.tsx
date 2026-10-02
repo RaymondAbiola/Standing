@@ -32,7 +32,13 @@ export default function MerchantPage() {
   const [maxReversals, setMaxReversals] = useState("255");
   const [refuseSuspended, setRefuseSuspended] = useState(true);
 
-  const rows = mandates.data ?? [];
+  const all = mandates.data ?? [];
+
+  // Only mandates that can actually be billed belong under "charge a
+  // customer". A revoked one cannot be charged, so listing it there is noise a
+  // merchant has to read past on every visit.
+  const rows = all.filter((m) => m.status === 1);
+  const inactive = all.length - rows.length;
   const blockers = useReadContracts({
     contracts: rows.map((m) => ({
       ...standingContract,
@@ -74,7 +80,17 @@ export default function MerchantPage() {
         </div>
       </Section>
 
-      <Section eyebrow="MANDATES" title="Charge a customer">
+      <Section
+        eyebrow="MANDATES"
+        title="Charge a customer"
+        right={
+          inactive > 0 ? (
+            <span className="text-[12px]" style={{color: "var(--muted)"}}>
+              {inactive} revoked, hidden
+            </span>
+          ) : undefined
+        }
+      >
         {mandates.isError ? (
           <Failed error={mandates.error} what="mandates naming you" />
         ) : rows.length === 0 ? (
