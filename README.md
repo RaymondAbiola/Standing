@@ -4,6 +4,19 @@
 
 Live app: **https://standing-xi.vercel.app**
 
+> **If MetaMask warns you about this URL, that is a false positive on the host, not
+> this app.** Blockaid, the service behind MetaMask's security alerts, flags
+> `*.vercel.app` broadly because phishing kits are hosted there in volume. The
+> warning fires on wallet connection, before this site has requested anything, and
+> Rabby connects to the same URL with no warning at all. It has been reported to
+> Blockaid as a false positive.
+>
+> The part that cannot be faked is onchain: both contracts are verified at the
+> addresses in the table below, and the only approval this app ever requests is a
+> bounded one (100,000 dUSDC to Permit2, see `web/components/Authorise.tsx`), never
+> an unlimited allowance. You can also read any address's full record on the site
+> without connecting a wallet at all.
+
 Blockchains can only push. Every subscription runs on pull, where the payer authorizes once and the
 payee draws funds repeatedly. That mismatch is why crypto has no subscriptions without a merchant
 taking custody, and why a payer who pre-authorized a pull has no remedy short of court.
