@@ -17,10 +17,18 @@ import {useStandingContract} from "@/lib/hooks";
 import {useTx} from "@/lib/useTx";
 import {Button, Chip, Field, Input, Section} from "./ui";
 
-const MAX_UINT256 = (1n << 256n) - 1n;
+/// Scoped on purpose, at both hops.
+///
+/// The usual Permit2 pattern approves Permit2 for an unbounded amount once and
+/// relies on the Permit2 allowance to do the limiting. That works, but an
+/// infinite approval prompt from a new domain is also the exact fingerprint a
+/// wallet drainer leaves, so MetaMask's security alerts flag it and the user is
+/// told the site looks malicious. The bound here is pointless to exceed anyway:
+/// Permit2 can only ever move what Standing's own Permit2 allowance permits.
+const TOKEN_ALLOWANCE = "100000";
 
-/// Scoped on purpose. An unlimited Permit2 allowance would defeat the point of
-/// routing through it, so the demo grants a bounded amount with an expiry.
+/// What Standing may pull through Permit2, and for how long. The expiry is the
+/// payer's second kill switch: it lapses without anyone having to act.
 const PERMIT_ALLOWANCE = "100000";
 const PERMIT_DAYS = 365;
 
@@ -191,7 +199,7 @@ export function Authorise({onDone}: {onDone?: () => void}) {
                   address: DEMO_TOKEN_ADDRESS,
                   abi: demoTokenAbi,
                   functionName: "approve",
-                  args: [PERMIT2_ADDRESS, MAX_UINT256],
+                  args: [PERMIT2_ADDRESS, parseAmount(TOKEN_ALLOWANCE)],
                 })
               }
             >
